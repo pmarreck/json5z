@@ -1,0 +1,1360 @@
+// cj5.h: Very minimal single header JSON5 parser in C99, dervied from jsmn
+//        This is the modified version of jsmn library
+//        Thus main parts of the code is taken from jsmn project (https://github.com/zserge/jsmn)
+//
+// MIT License
+//
+// Copyright (c) 2026 Sepehr Taghdisian
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+// Compliance with JSON5:
+//  [x] Object keys may be an ECMAScript 5.1 IdentifierName.
+//  [x] Objects may have a single trailing comma.
+//  [x] Strings may be single quoted.
+//  [x] Strings may span multiple lines by escaping new line characters.
+//  [x] Strings may include character escapes.
+//  [x] Numbers may be hexadecimal.
+//  [x] Numbers may have a leading or trailing decimal point.
+//  [x] Numbers may be IEEE 754 positive infinity, negative infinity, and NaN.
+//  [x] Numbers may begin with an explicit plus sign.
+//  [x] Single and multi-line comments are allowed.
+//  [x] Additional white space characters are allowed.
+//  [x] Multiline comments
+//
+// Usage:
+//  The main function to parse json is `cj5ref_parse`. 
+//  like jsmn, you provide all tokens to be filled as an array and provide the maximum count
+//  The result will be return in `cj5ref_result` struct, and `num_tokens` will represent the actual
+//  token count that is parsed. 
+//  In case of errors, cj_result.error will be set to an error code
+//  Here's a quick example of the usage, first define CJ5REF_IMPLEMENT to include the implementation:
+//  
+//        #define CJ5REF_IMPLEMENT
+//        #include "cj5.h"
+//
+//        cj5ref_token tokens[32];
+//        cj5ref_result r = cj5ref_parse(g_json, (int)strlen(g_json), tokens, 32);
+//        
+//        if (r.error != CJ5REF_ERROR_NONE) {
+//          if (r.error == CJ5REF_ERROR_OVERFLOW) {
+//              // you can use r.num_tokens to determine the actual token count and reparse
+//              printf("Error: line: %d, col: %d\n", r.error_line, r.error_code);    
+//          }
+//        } else {
+//          // use token helper functions (see below) to access the values 
+//          float my_num = cj5ref_seekget_float(&r, 0, "my_num", 0 /* default value if not found*/ );
+//        } 
+//
+// Token factory:
+//      To dynamically allocate tokens while parsing. You can use `cj5ref_parse_with_factory` and provide it with cj5ref_factory callbacks:
+//      Factory can be a dynamically growing array (std::vector) that allocate tokens instead of allocating them up front
+//          create_token: Allocates a token and returns it's pointer.
+//          get_all: returns the pointer to all tokens allocated. 
+//     
+// Customization:
+//  This library doesn't use any memory allocations so hooray for that !
+//  But in order to not use default stdc functions, you can override those by defining these macros:
+//      - CJ5REF_IMPLEMENT: include implementation for cj5
+//      - CJ5REF_ASSERT(e): replace stdc `assert` macro with your own version
+//      - CJ5REF_MEMSET(dst, value, size): replace 'memset' function with your own
+//      - CJ5REF_MEMCPY(dst, src, size): replace 'memcpy' function with your own
+//      - CJ5REF_TOKEN_HELPERS: add token helper functions (default=ON), you can skip these by definining:
+//                           #define CJ5REF_TOKEN_HELPERS 0, before including the header
+//      - CJ5REF_API: API decleration can be override by defining this macro. (default is extern)
+//                 example: #define CJ5REF_API static
+// 
+#pragma once
+
+#include <stdbool.h>    // bool
+#include <stdint.h>     // uint32_t, int64_t, etc.
+
+#ifndef CJ5REF_TOKEN_HELPERS
+#    define CJ5REF_TOKEN_HELPERS 1
+#endif
+
+#ifndef CJ5REF_API
+#    ifdef __cplusplus
+#        define CJ5REF_API extern "C"
+#    else
+#        define CJ5REF_API
+#    endif
+#endif
+
+#ifndef CJ5REF_SKIP_ASAN
+#    define CJ5REF_SKIP_ASAN
+#endif
+
+typedef enum cj5ref_token_type {
+    CJ5REF_TOKEN_OBJECT = 0,
+    CJ5REF_TOKEN_ARRAY,
+    CJ5REF_TOKEN_NUMBER,
+    CJ5REF_TOKEN_STRING,
+    CJ5REF_TOKEN_BOOL,
+    CJ5REF_TOKEN_NULL
+} cj5ref_token_type;
+
+// sub-type for NUMBER token type
+// this is merely a hint for the user to see what type of number the token contains
+typedef enum cj5ref_token_number_type {
+    CJ5REF_TOKEN_NUMBER_UNKNOWN = 0,
+    CJ5REF_TOKEN_NUMBER_FLOAT,
+    CJ5REF_TOKEN_NUMBER_INT,
+    CJ5REF_TOKEN_NUMBER_HEX
+} cj5ref_token_number_type;
+
+typedef enum cj5ref_error_code {
+    CJ5REF_ERROR_NONE = 0,
+    CJ5REF_ERROR_INVALID,       // invalid character/syntax
+    CJ5REF_ERROR_INCOMPLETE,    // incomplete json string
+    CJ5REF_ERROR_OVERFLOW       // token buffer overflow, need more tokens (see cj5ref_result.num_tokens)
+} cj5ref_error_code;
+
+typedef struct cj5ref_token {
+    cj5ref_token_type type;
+    union {
+        cj5ref_token_number_type num_type;
+        uint32_t key_hash;
+    };
+    int key_start;
+    int key_end;
+    int start;
+    int end;
+    int size;
+    int parent_id;      // = -1 if there is no parent
+} cj5ref_token;
+
+typedef struct cj5ref_factory {
+    cj5ref_token* (*create_token)(void* user);
+    cj5ref_token* (*get_all)(void* user);
+    void* user_data;
+} cj5ref_factory;
+
+typedef struct cj5ref_result {
+    cj5ref_error_code error;
+    int error_line;
+    int error_col;
+    int error_offset;   // byte offset into json5 where the error was detected
+    int num_tokens;
+    const cj5ref_token* tokens;
+    const char* json5;
+} cj5ref_result;
+
+CJ5REF_API cj5ref_result cj5ref_parse(const char* json5, int len, cj5ref_token* tokens, int max_tokens);
+CJ5REF_API cj5ref_result cj5ref_parse_with_factory(const char* json5, int len, cj5ref_factory factory);
+
+// token helpers
+#if CJ5REF_TOKEN_HELPERS
+CJ5REF_API int cj5ref_seek(cj5ref_result* r, int parent_id, const char* key);
+CJ5REF_API int cj5ref_seek_hash(cj5ref_result* r, int parent_id, const uint32_t key_hash);
+CJ5REF_API int cj5ref_seek_recursive(cj5ref_result* r, int parent_id, const char* key);
+CJ5REF_API const char* cj5ref_get_string(cj5ref_result* r, int id, char* str, int max_str);
+CJ5REF_API double cj5ref_get_double(cj5ref_result* r, int id);
+CJ5REF_API float cj5ref_get_float(cj5ref_result* r, int id);
+CJ5REF_API int cj5ref_get_int(cj5ref_result* r, int id);
+CJ5REF_API uint32_t cj5ref_get_uint(cj5ref_result* r, int id);
+CJ5REF_API uint64_t cj5ref_get_uint64(cj5ref_result* r, int id);
+CJ5REF_API int64_t cj5ref_get_int64(cj5ref_result* r, int id);
+CJ5REF_API bool cj5ref_get_bool(cj5ref_result* r, int id);
+CJ5REF_API double cj5ref_seekget_double(cj5ref_result* r, int parent_id, const char* key, double def_val);
+CJ5REF_API float cj5ref_seekget_float(cj5ref_result* r, int parent_id, const char* key, float def_val);
+CJ5REF_API int cj5ref_seekget_array_int16(cj5ref_result* r, int parent_id, const char* key, int16_t* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_uint16(cj5ref_result* r, int parent_id, const char* key, uint16_t* values, int max_values);
+CJ5REF_API int cj5ref_seekget_int(cj5ref_result* r, int parent_id, const char* key, int def_val);
+CJ5REF_API uint32_t cj5ref_seekget_uint(cj5ref_result* r, int parent_id, const char* key, uint32_t def_val);
+CJ5REF_API uint64_t cj5ref_seekget_uint64(cj5ref_result* r, int parent_id, const char* key, uint64_t def_val);
+CJ5REF_API int64_t cj5ref_seekget_int64(cj5ref_result* r, int parent_id, const char* key, int64_t def_val);
+CJ5REF_API bool cj5ref_seekget_bool(cj5ref_result* r, int parent_id, const char* key, bool def_val);
+CJ5REF_API const char* cj5ref_seekget_string(cj5ref_result* r, int parent_id, const char* key, char* str, int max_str, const char* def_val);
+
+CJ5REF_API int cj5ref_seekget_array_double(cj5ref_result* r, int parent_id, const char* key, double* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_float(cj5ref_result* r, int parent_id, const char* key, float* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_int(cj5ref_result* r, int parent_id, const char* key, int* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_uint(cj5ref_result* r, int parent_id, const char* key, uint32_t* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_uint64(cj5ref_result* r, int parent_id, const char* key, uint64_t* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_int64(cj5ref_result* r, int parent_id, const char* key, int64_t* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_bool(cj5ref_result* r, int parent_id, const char* key, bool* values, int max_values);
+CJ5REF_API int cj5ref_seekget_array_string(cj5ref_result* r, int parent_id, const char* key, char** strs, int max_str, int max_values);
+CJ5REF_API int cj5ref_get_array_elem(cj5ref_result* r, int id, int index);
+CJ5REF_API int cj5ref_get_array_elem_incremental(cj5ref_result* r, int id, int index, int prev_elem);
+#endif
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// IMPLEMENTATION
+#if defined(CJ5REF_IMPLEMENT)
+
+// optional: override asset
+#    ifndef CJ5REF_ASSERT
+#        include <assert.h>
+#        define CJ5REF_ASSERT(_e) assert(_e)
+#    endif
+
+// optional: override memcpy
+#    ifndef CJ5REF_MEMCPY
+#        include <string.h>    // memcpy
+#        define CJ5REF_MEMCPY(_dst, _src, _n) memcpy((_dst), (_src), (_n))
+#    endif
+
+#    ifndef CJ5REF_MEMSET
+#        include <string.h>
+#        define CJ5REF_MEMSET(_dst, _val, _size) memset((_dst), (_val), (_size))
+#    endif
+
+#    define CJ5REF__ARCH_64BIT 0
+#    define CJ5REF__ARCH_32BIT 0
+#    if defined(__x86_64__) || defined(_M_X64) || defined(__aarch64__) || defined(__64BIT__) || \
+        defined(__mips64) || defined(__powerpc64__) || defined(__ppc64__) || defined(__LP64__)
+#        undef CJ5REF__ARCH_64BIT
+#        define CJ5REF__ARCH_64BIT 64
+#    else
+#        undef CJ5REF__ARCH_32BIT
+#        define CJ5REF__ARCH_32BIT 32
+#    endif    //
+
+#    if defined(_MSC_VER)
+#        define CJ5REF__RESTRICT __restrict
+#    else
+#        define CJ5REF__RESTRICT __restrict__
+#    endif
+
+#    define CJ5REF__UNUSED(_a) (void)(_a)
+
+#    define CJ5REF__FOURCC(_a, _b, _c, _d) \
+        (((uint32_t)(_a) | ((uint32_t)(_b) << 8) | ((uint32_t)(_c) << 16) | ((uint32_t)(_d) << 24)))
+
+static const uint32_t CJ5REF__NULL_FOURCC = CJ5REF__FOURCC('n', 'u', 'l', 'l');
+static const uint32_t CJ5REF__TRUE_FOURCC = CJ5REF__FOURCC('t', 'r', 'u', 'e');
+static const uint32_t CJ5REF__FALSE_FOURCC = CJ5REF__FOURCC('f', 'a', 'l', 's');
+
+static const uint32_t CJ5REF__FNV1_32_INIT = 0x811c9dc5;
+static const uint32_t CJ5REF__FNV1_32_PRIME = 0x01000193;
+
+typedef struct cj5ref__parser {
+    int pos;
+    int next_id;
+    int super_id;
+    int line;
+    cj5ref_token* tokens;
+    cj5ref_factory token_factory;
+} cj5ref__parser;
+
+static inline uint32_t cj5ref__hash_fnv32(const char* start, const char* end)
+{
+    const char* bp = start;
+    const char* be = end;    // start + len
+
+    uint32_t hval = CJ5REF__FNV1_32_INIT;
+    while (bp < be) {
+        hval ^= (uint32_t)*bp++;
+        hval *= CJ5REF__FNV1_32_PRIME;
+    }
+
+    return hval;
+}
+
+static inline bool cj5ref__isspace(char ch)
+{
+    return (uint32_t)(ch - 1) < 32 && ((0x80001F00 >> (uint32_t)(ch - 1)) & 1) == 1;
+}
+
+static inline bool cj5ref__isrange(char ch, char from, char to)
+{
+    return (uint8_t)(ch - from) <= (uint8_t)(to - from);
+}
+
+static inline bool cj5ref__isupperchar(char ch)
+{
+    return cj5ref__isrange(ch, 'A', 'Z');
+}
+
+static inline bool cj5ref__islowerchar(char ch)
+{
+    return cj5ref__isrange(ch, 'a', 'z');
+}
+
+static inline bool cj5ref__isnum(char ch)
+{
+    return cj5ref__isrange(ch, '0', '9');
+}
+
+static inline char* cj5ref__strcpy(char* CJ5REF__RESTRICT dst, int dst_sz, const char* CJ5REF__RESTRICT src, int num)
+{
+    const int _max = dst_sz - 1;
+    const int _num = (num < _max ? num : _max);
+    if (_num > 0) {
+        CJ5REF_MEMCPY(dst, src, _num);
+    }
+    dst[_num] = '\0';
+    return dst;
+}
+
+// https://github.com/lattera/glibc/blob/master/string/strlen.c
+CJ5REF_SKIP_ASAN static int cj5ref__strlen(const char* str)
+{
+    const char* char_ptr;
+    const uintptr_t* longword_ptr;
+    uintptr_t longword, himagic, lomagic;
+
+    for (char_ptr = str; ((uintptr_t)char_ptr & (sizeof(longword) - 1)) != 0; ++char_ptr) {
+        if (*char_ptr == '\0')
+            return (int)(intptr_t)(char_ptr - str);
+    }
+    longword_ptr = (uintptr_t*)char_ptr;
+    himagic = 0x80808080L;
+    lomagic = 0x01010101L;
+#    if CJ5REF__ARCH_64BIT
+    /* 64-bit version of the magic.  */
+    /* Do the shift in two steps to avoid a warning if long has 32 bits.  */
+    himagic = ((himagic << 16) << 16) | himagic;
+    lomagic = ((lomagic << 16) << 16) | lomagic;
+#    endif
+
+    for (;;) {
+        longword = *longword_ptr++;
+
+        if (((longword - lomagic) & ~longword & himagic) != 0) {
+            const char* cp = (const char*)(longword_ptr - 1);
+
+            if (cp[0] == 0)
+                return (int)(intptr_t)(cp - str);
+            if (cp[1] == 0)
+                return (int)(intptr_t)(cp - str + 1);
+            if (cp[2] == 0)
+                return (int)(intptr_t)(cp - str + 2);
+            if (cp[3] == 0)
+                return (int)(intptr_t)(cp - str + 3);
+#    if CJ5REF__ARCH_64BIT
+            if (cp[4] == 0)
+                return (int)(intptr_t)(cp - str + 4);
+            if (cp[5] == 0)
+                return (int)(intptr_t)(cp - str + 5);
+            if (cp[6] == 0)
+                return (int)(intptr_t)(cp - str + 6);
+            if (cp[7] == 0)
+                return (int)(intptr_t)(cp - str + 7);
+#    endif
+        }
+    }
+
+    #ifndef _MSC_VER
+    CJ5REF_ASSERT(0);
+    return -1;
+    #endif
+}
+
+static inline cj5ref_token* cj5ref__alloc_token(cj5ref__parser* parser)
+{
+    cj5ref_token* token = parser->token_factory.create_token(parser->token_factory.user_data);
+    if (!token)
+        return NULL;
+    CJ5REF_MEMSET(token, 0x0, sizeof(cj5ref_token));
+
+    ++parser->next_id;
+    parser->tokens = parser->token_factory.get_all(parser->token_factory.user_data);
+
+    token->start = -1;
+    token->end = -1;
+    token->parent_id = -1;
+    return token;
+}
+
+static inline void cj5ref__set_error(cj5ref_result* r, cj5ref_error_code code, int pos, int line, int col)
+{
+    r->error = code;
+    r->error_offset = pos;
+    r->error_line = line + 1;
+    r->error_col = col + 1;
+}
+
+static bool cj5ref__parse_primitive(cj5ref__parser* parser, cj5ref_result* r, const char* json5, int len)
+{
+    cj5ref_token* token;
+    int start = parser->pos;
+    int line_start = start;
+    bool keyname = false;
+    bool new_line = false;
+
+    for (; parser->pos < len; parser->pos++) {
+        switch (json5[parser->pos]) {
+        case '\n':
+            line_start = parser->pos;
+            new_line = true;
+            goto found;
+        case ':':
+            keyname = true;
+            goto found;
+        case '\t':
+        case '\r':
+        case ' ':
+        case ',':
+        case ']':
+        case '}':
+            goto found;
+        default:
+            break;
+        }
+
+        if (json5[parser->pos] < 32 || json5[parser->pos] >= 127) {
+            cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line, parser->pos - line_start);
+            parser->pos = start;
+            return false;
+        }
+    }
+
+    cj5ref__set_error(r, CJ5REF_ERROR_INCOMPLETE, parser->pos, parser->line, parser->pos - line_start);
+    parser->pos = start;
+    return false;
+
+found:
+    // JSON5 allows whitespace between an unquoted key and its ':'. If the scan
+    // stopped on whitespace, look ahead past it: a following ':' means this
+    // token is a key name, not a value (matching the ':'-terminated case above).
+    if (!keyname) {
+        for (int i = parser->pos; i < len; i++) {
+            char nc = json5[i];
+            if (nc == ' ' || nc == '\t' || nc == '\r' || nc == '\n') {
+                continue;
+            }
+            if (nc == ':') {
+                keyname = true;
+            }
+            break;
+        }
+    }
+
+    token = cj5ref__alloc_token(parser);
+    if (token == NULL) {
+        r->error = CJ5REF_ERROR_OVERFLOW;
+        --parser->pos;
+        return true;
+    }
+
+    cj5ref_token_type type;
+    cj5ref_token_number_type num_type = CJ5REF_TOKEN_NUMBER_UNKNOWN;
+    if (keyname) {
+        // JSON5: it is likely a key-name, validate and interpret as string
+        for (int i = start; i < parser->pos; i++) {
+            if (cj5ref__islowerchar(json5[i]) || cj5ref__isupperchar(json5[i]) || json5[i] == '_') {
+                continue;
+            }
+
+            if (cj5ref__isnum(json5[i])) {
+                if (i == start) {
+                    cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line, parser->pos - line_start);
+                    parser->pos = start;
+                    return false;
+                }
+                continue;
+            }
+
+            cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line, parser->pos - line_start);
+            parser->pos = start;
+            return false;
+        }
+
+        type = CJ5REF_TOKEN_STRING;
+    } else {
+        // detect other types, subtypes
+        // note that we have to use memcpy here or we will get unaligned access on some
+        uint32_t fourcc_ = 0;
+        if (parser->pos - start >= 4)
+            CJ5REF_MEMCPY(&fourcc_, &json5[start], 4);
+        else
+            CJ5REF_MEMCPY(&fourcc_, &json5[start], parser->pos - start);
+
+        uint32_t* fourcc = &fourcc_;
+ 
+        if (*fourcc == CJ5REF__NULL_FOURCC) {
+            type = CJ5REF_TOKEN_NULL;
+        } else if (*fourcc == CJ5REF__TRUE_FOURCC) {
+            type = CJ5REF_TOKEN_BOOL;
+        } else if (*fourcc == CJ5REF__FALSE_FOURCC) {
+            type = CJ5REF_TOKEN_BOOL;
+        } else {
+            num_type = CJ5REF_TOKEN_NUMBER_INT;
+            // hex number
+            if (json5[start] == '0' && start < parser->pos + 1 && json5[start + 1] == 'x') {
+                start = start + 2;
+                for (int i = start; i < parser->pos; i++) {
+                    if (!(cj5ref__isrange(json5[i], '0', '9') || cj5ref__isrange(json5[i], 'A', 'F') ||
+                          cj5ref__isrange(json5[i], 'a', 'f'))) {
+                        cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line,
+                                       parser->pos - line_start);
+                        parser->pos = start;
+                        return false;
+                    }
+                }
+                num_type = CJ5REF_TOKEN_NUMBER_HEX;
+            } else {
+                int start_index = start;
+                if (json5[start] == '+') {
+                    ++start_index;
+                    ++start;
+                } else if (json5[start] == '-') {
+                    ++start_index;
+                }
+
+                for (int i = start_index; i < parser->pos; i++) {
+                    if (json5[i] == '.') {
+                        if (num_type == CJ5REF_TOKEN_NUMBER_FLOAT) {
+                            cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line,
+                                           parser->pos - line_start);
+                            parser->pos = start;
+                            return false;
+                        }
+                        num_type = CJ5REF_TOKEN_NUMBER_FLOAT;
+                        continue;
+                    }
+
+                    if (!cj5ref__isnum(json5[i])) {
+                        cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line,
+                                       parser->pos - line_start);
+                        parser->pos = start;
+                        return false;
+                    }
+                }
+            }
+
+            type = CJ5REF_TOKEN_NUMBER;
+        }
+    }
+
+    if (new_line) {
+        ++parser->line;
+    }
+
+    token->type = type;
+    if (type == CJ5REF_TOKEN_STRING) {
+        token->key_hash = cj5ref__hash_fnv32(&json5[start], &json5[parser->pos]);
+        token->key_start = start;
+        token->key_end = parser->pos;
+    } else {
+        token->num_type = num_type;
+    }
+    token->start = start;
+    token->end = parser->pos;
+    token->parent_id = parser->super_id;
+    --parser->pos;
+    return true;
+}
+
+static bool cj5ref__parse_string(cj5ref__parser* parser, cj5ref_result* r, const char* json5, int len)
+{
+    cj5ref_token* token;
+    int start = parser->pos;
+    int line_start = start;
+    char str_open = json5[start];
+    ++parser->pos;
+
+    for (; parser->pos < len; parser->pos++) {
+        char c = json5[parser->pos];
+
+        // end of string
+        if (str_open == c) {
+            token = cj5ref__alloc_token(parser);
+            if (token == NULL) {
+                r->error = CJ5REF_ERROR_OVERFLOW;
+                return true;
+            }
+
+            token->type = CJ5REF_TOKEN_STRING;
+            token->start = start + 1;
+            token->end = parser->pos;
+            token->parent_id = parser->super_id;
+
+            return true;
+        }
+
+        if (c == '\\' && parser->pos + 1 < len) {
+            ++parser->pos;
+            switch (json5[parser->pos]) {
+            case '\"':
+            case '/':
+            case '\\':
+            case 'b':
+            case 'f':
+            case 'r':
+            case 'n':
+            case 't':
+                break;
+            case 'u':
+                ++parser->pos;
+                for (int i = 0; i < 4 && parser->pos < len; i++) {
+                    /* If it isn't a hex character we have an error */
+                    if (!((json5[parser->pos] >= 48 && json5[parser->pos] <= 57) ||   /* 0-9 */
+                          (json5[parser->pos] >= 65 && json5[parser->pos] <= 70) ||   /* A-F */
+                          (json5[parser->pos] >= 97 && json5[parser->pos] <= 102))) { /* a-f */
+                        cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line,
+                                       parser->pos - line_start);
+                        parser->pos = start;
+                        return false;
+                    }
+                    parser->pos++;
+                }
+
+                --parser->pos;
+                break;
+            case '\n':
+                line_start = parser->pos;
+                ++parser->line;
+                break;
+            default:
+                cj5ref__set_error(r, CJ5REF_ERROR_INVALID, parser->pos, parser->line, parser->pos - line_start);
+                parser->pos = start;
+                return false;
+            }
+        }
+    }
+
+    parser->pos = start;
+    return true;
+}
+
+static void cj5ref__skip_comment(cj5ref__parser* parser, const char* json5, int len)
+{
+    for (; parser->pos < len; parser->pos++) {
+        if (json5[parser->pos] == '\n' || json5[parser->pos] == '\r') {
+            return;
+        }
+    }
+}
+
+static void cj5ref__skip_multiline_comment(cj5ref__parser* parser, const char* json5, int len)
+{
+    for (; parser->pos < len; parser->pos++) {
+        if (json5[parser->pos] == '*' && parser->pos < (len - 1) && json5[parser->pos+1] == '/') {
+            return;
+        }
+    }
+}
+
+cj5ref_result cj5ref_parse_with_factory(const char* json5, int len, cj5ref_factory factory)
+{
+    CJ5REF_ASSERT(json5);
+
+    cj5ref__parser parser;
+    CJ5REF_MEMSET(&parser, 0x0, sizeof(parser));
+    parser.super_id = -1;
+    parser.token_factory = factory;
+
+    cj5ref_result r;
+    CJ5REF_MEMSET(&r, 0x0, sizeof(r));
+
+    cj5ref_token* token;
+    int count = parser.next_id;
+    bool can_comment = false;
+
+    for (; parser.pos < len; parser.pos++) {
+        char c;
+        cj5ref_token_type type;
+
+        c = json5[parser.pos];
+        switch (c) {
+        case '{':
+        case '[':
+            can_comment = false;
+            count++;
+            token = cj5ref__alloc_token(&parser);
+            if (token == NULL) {
+                r.error = CJ5REF_ERROR_OVERFLOW;
+                break;
+            }
+
+            if (parser.super_id != -1) {
+                cj5ref_token* super_token = &parser.tokens[parser.super_id];
+                token->parent_id = parser.super_id;
+                if (++super_token->size == 1 && super_token->type == CJ5REF_TOKEN_STRING) {
+                    super_token->key_hash =
+                        cj5ref__hash_fnv32(&json5[super_token->start], &json5[super_token->end]);
+                    super_token->key_start = super_token->start;
+                    super_token->key_end = super_token->end;
+                }
+            }
+
+            token->type = (c == '{' ? CJ5REF_TOKEN_OBJECT : CJ5REF_TOKEN_ARRAY);
+            token->start = parser.pos;
+            parser.super_id = parser.next_id - 1;
+            break;
+
+        case '}':
+        case ']':
+            can_comment = false;
+            if (r.error == CJ5REF_ERROR_OVERFLOW) {
+                break;
+            }
+            // JSON5: a 'key:' must be followed by a value before the container
+            // closes. If super_id still points to a key string with no value
+            // attached (size == 0), the value is missing -> invalid.
+            if (parser.super_id != -1 &&
+                parser.tokens[parser.super_id].type == CJ5REF_TOKEN_STRING &&
+                parser.tokens[parser.super_id].size == 0) {
+                cj5ref__set_error(&r, CJ5REF_ERROR_INVALID, parser.pos, parser.line, parser.pos - parser.line);
+                return r;
+            }
+            type = (c == '}' ? CJ5REF_TOKEN_OBJECT : CJ5REF_TOKEN_ARRAY);
+
+            if (parser.next_id < 1) {
+                cj5ref__set_error(&r, CJ5REF_ERROR_INVALID, parser.pos, parser.line, parser.pos - parser.line);
+                return r;
+            }
+
+            token = &parser.tokens[parser.next_id - 1];
+            for (;;) {
+                if (token->start != -1 && token->end == -1) {
+                    if (token->type != type) {
+                        cj5ref__set_error(&r, CJ5REF_ERROR_INVALID, parser.pos, parser.line,
+                                       parser.pos - parser.line);
+                        return r;
+                    }
+                    token->end = parser.pos + 1;
+                    parser.super_id = token->parent_id;
+                    break;
+                }
+
+                if (token->parent_id == -1) {
+                    if (token->type != type || parser.super_id == -1) {
+                        cj5ref__set_error(&r, CJ5REF_ERROR_INVALID, parser.pos, parser.line,
+                                       parser.pos - parser.line);
+                        return r;
+                    }
+                    break;
+                }
+
+                token = &parser.tokens[token->parent_id];
+            }
+            break;
+
+        case '\"':
+        case '\'':
+            can_comment = false;
+            // JSON5: strings can start with \" or \'
+            cj5ref__parse_string(&parser, &r, json5, len);
+            if (r.error && r.error != CJ5REF_ERROR_OVERFLOW) {
+                return r;
+            }
+            count++;
+            if (parser.super_id != -1 && r.error != CJ5REF_ERROR_OVERFLOW) {
+                if (++parser.tokens[parser.super_id].size == 1 &&
+                    parser.tokens[parser.super_id].type == CJ5REF_TOKEN_STRING) {
+                    // it's not a value, it's a key, so hash it
+                    parser.tokens[parser.super_id].key_hash = cj5ref__hash_fnv32(
+                        &json5[parser.tokens[parser.super_id].start], &json5[parser.tokens[parser.super_id].end]);
+                    parser.tokens[parser.super_id].key_start = parser.tokens[parser.super_id].start;
+                    parser.tokens[parser.super_id].key_end = parser.tokens[parser.super_id].end;
+                }
+            }
+            break;
+
+        case '\r':
+            can_comment = true;
+            break;
+        case '\n':
+            ++parser.line;
+            can_comment = true;
+            break;
+        case '\t':
+        case ' ':
+            break;
+
+        case ':':
+            can_comment = false;
+            parser.super_id = parser.next_id - 1;
+            break;
+
+        case ',':
+            can_comment = false;
+            if (parser.super_id != -1 && r.error != CJ5REF_ERROR_OVERFLOW) {
+                // Missing value: 'key:' immediately followed by ',' leaves super_id
+                // on a size-0 key string -> invalid JSON5.
+                if (parser.tokens[parser.super_id].type == CJ5REF_TOKEN_STRING &&
+                    parser.tokens[parser.super_id].size == 0) {
+                    cj5ref__set_error(&r, CJ5REF_ERROR_INVALID, parser.pos, parser.line, parser.pos - parser.line);
+                    return r;
+                }
+                if (parser.tokens[parser.super_id].type != CJ5REF_TOKEN_ARRAY &&
+                    parser.tokens[parser.super_id].type != CJ5REF_TOKEN_OBJECT) {
+                    parser.super_id = parser.tokens[parser.super_id].parent_id;
+                }
+            }
+            break;
+        case '/':
+            if (can_comment && parser.pos < len - 1) {
+                if (json5[parser.pos + 1] == '/') {
+                    cj5ref__skip_comment(&parser, json5, len);
+                } else if (json5[parser.pos + 1] == '*') {
+                    cj5ref__skip_multiline_comment(&parser, json5, len);
+                }
+            } 
+            break;
+
+        default:
+            cj5ref__parse_primitive(&parser, &r, json5, len);
+            if (r.error && r.error != CJ5REF_ERROR_OVERFLOW) {
+                return r;
+            }
+            can_comment = false;
+            count++;
+            if (parser.super_id != -1 && r.error != CJ5REF_ERROR_OVERFLOW) {
+                if (++parser.tokens[parser.super_id].size == 1 &&
+                    parser.tokens[parser.super_id].type == CJ5REF_TOKEN_STRING) {
+                    parser.tokens[parser.super_id].key_hash = cj5ref__hash_fnv32(
+                        &json5[parser.tokens[parser.super_id].start], &json5[parser.tokens[parser.super_id].end]);
+                    parser.tokens[parser.super_id].key_start = parser.tokens[parser.super_id].start;
+                    parser.tokens[parser.super_id].key_end = parser.tokens[parser.super_id].end;
+                }
+            }
+            break;
+        }
+    }
+
+    if (r.error != CJ5REF_ERROR_OVERFLOW) {
+        for (int i = parser.next_id - 1; i >= 0; i--) {
+            // unmatched object or array ?
+            if (parser.tokens[i].start != -1 && parser.tokens[i].end == -1) {
+                cj5ref__set_error(&r, CJ5REF_ERROR_INCOMPLETE, parser.pos, parser.line, parser.pos - parser.line);
+                return r;
+            }
+        }
+    }
+
+    r.num_tokens = count;
+    r.tokens = parser.tokens;
+    r.json5 = json5;
+    return r;
+}
+
+typedef struct cj5ref_factory_default {
+    cj5ref_token* tokens;
+    int max_tokens;
+    int index;
+} cj5ref_factory_default;
+
+static cj5ref_token* cj5ref_factory_default_create_fn(void* user)
+{
+    cj5ref_factory_default* factory = (cj5ref_factory_default*)user;
+
+    if (factory->index < factory->max_tokens)
+        return &factory->tokens[factory->index++];
+    else
+        return NULL;
+}
+
+static cj5ref_token* cj5ref_factory_default_getall_fn(void* user)
+{
+    cj5ref_factory_default* factory = (cj5ref_factory_default*)user;
+    return factory->tokens;
+}
+
+cj5ref_result cj5ref_parse(const char* json5, int len, cj5ref_token* tokens, int max_tokens)
+{
+    CJ5REF_ASSERT(json5);
+    CJ5REF_ASSERT(tokens);
+    CJ5REF_ASSERT(max_tokens > 0);
+
+    cj5ref_factory factory;
+    cj5ref_factory_default factory_data;
+    factory_data.tokens = tokens;
+    factory_data.max_tokens = max_tokens;
+    factory_data.index = 0;
+
+    factory.create_token = cj5ref_factory_default_create_fn;
+    factory.get_all = cj5ref_factory_default_getall_fn;
+    factory.user_data = &factory_data;
+
+    return cj5ref_parse_with_factory(json5, len, factory);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Helper functions to work with tokens
+#    if CJ5REF_TOKEN_HELPERS
+#        include <stdlib.h>
+
+static int cj5ref__seek_recursive(cj5ref_result* r, int parent_id, uint32_t key_hash)
+{
+    const cj5ref_token* parent_tok = &r->tokens[parent_id];
+
+    for (int i = parent_id + 1, count = 0; i < r->num_tokens && count < parent_tok->size; i++) {
+        const cj5ref_token* tok = &r->tokens[i];
+
+        if (tok->size != 1 || tok->type != CJ5REF_TOKEN_STRING) {
+            continue;
+        }
+
+        if (parent_id == tok->parent_id) {
+            CJ5REF_ASSERT((i + 1) < r->num_tokens);
+            if (key_hash == tok->key_hash) {
+                return i + 1;    // return next "value" token (array/objects and primitive values)
+            } else if (r->tokens[i + 1].size) {
+                int found_id = cj5ref__seek_recursive(r, i + 1, key_hash);
+                if (found_id != -1) {
+                    return found_id;
+                }
+            }
+            count++;
+        }
+    }
+
+    return -1;
+}
+
+static bool cj5ref__tofloat(const char* str, double* ofloat)
+{
+    // skip leading whitespace
+    while (*str && cj5ref__isspace(*str)) {
+        str++;
+    }
+    int sign = 1;
+
+    const char* pC = str;
+    if (*pC == '-') {
+        sign = -1;
+        pC++;
+    }
+
+    // parse integer part
+    int64_t tmp = 0;
+    while (*pC >= '0' && *pC <= '9') {
+        tmp *= 10;
+        tmp += *pC - '0';
+        pC++;
+    }
+
+    if (*pC == 0) {
+        *ofloat = (double)(sign >= 0 ? tmp : -tmp);
+        return true;
+    }
+
+    // Parse fraction
+    if (*pC == '.') {
+        pC++;
+
+        int64_t divisor = sign;
+        while (*pC >= '0' && *pC <= '9') {
+            divisor *= 10;
+            tmp *= 10;
+            tmp += *pC - '0';
+            pC++;
+        }
+
+        // Skip tailing whitespace
+        while (*pC && cj5ref__isspace(*pC)) {
+            pC++;
+        }
+
+        if (*pC == 0) {
+            *ofloat = (double)tmp / (double)divisor;
+            return true;
+        }
+    }
+
+    *ofloat = strtod(str, NULL);
+    return true;
+}
+
+int cj5ref_seek_recursive(cj5ref_result* r, int parent_id, const char* key)
+{
+    CJ5REF_ASSERT(parent_id >= 0 && parent_id < r->num_tokens);
+
+    uint32_t key_hash = cj5ref__hash_fnv32(key, key + cj5ref__strlen(key));
+    return cj5ref__seek_recursive(r, parent_id, key_hash);
+}
+
+int cj5ref_seek_hash(cj5ref_result* r, int parent_id, const uint32_t key_hash)
+{
+    CJ5REF_ASSERT(parent_id >= 0 && parent_id < r->num_tokens);
+    const cj5ref_token* parent_tok = &r->tokens[parent_id];
+
+    for (int i = parent_id + 1, count = 0; i < r->num_tokens && count < parent_tok->size; i++) {
+        const cj5ref_token* tok = &r->tokens[i];
+
+        if (tok->size != 1 || tok->type != CJ5REF_TOKEN_STRING) {
+            continue;
+        }
+
+        if (parent_id == tok->parent_id) {
+            if (key_hash == tok->key_hash) {
+                CJ5REF_ASSERT((i + 1) < r->num_tokens);
+                return i + 1;    // return next "value" token (array/objects and primitive values)
+            }
+            count++;
+        }
+    }
+
+    return -1;
+}
+
+int cj5ref_seek(cj5ref_result* r, int parent_id, const char* key)
+{
+    CJ5REF_ASSERT(parent_id >= 0 && parent_id < r->num_tokens);
+
+    uint32_t key_hash = cj5ref__hash_fnv32(key, key + cj5ref__strlen(key));
+
+    return cj5ref_seek_hash(r, parent_id, key_hash);
+}
+
+const char* cj5ref_get_string(cj5ref_result* r, int id, char* str, int max_str)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_STRING);
+    return cj5ref__strcpy(str, max_str, &r->json5[tok->start], tok->end - tok->start);
+}
+
+double cj5ref_get_double(cj5ref_result* r, int id)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_NUMBER);
+    char snum[32];
+    double num;
+    cj5ref__strcpy(snum, sizeof(snum), &r->json5[tok->start], tok->end - tok->start);
+    bool valid = cj5ref__tofloat(snum, &num);
+    CJ5REF__UNUSED(valid);
+    CJ5REF_ASSERT(valid);
+    return num;
+}
+
+float cj5ref_get_float(cj5ref_result* r, int id)
+{
+    return (float)cj5ref_get_double(r, id);
+}
+
+int cj5ref_get_int(cj5ref_result* r, int id)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_NUMBER);
+    char snum[32];
+    cj5ref__strcpy(snum, sizeof(snum), &r->json5[tok->start], tok->end - tok->start);
+    return (int)strtol(snum, NULL, tok->num_type != CJ5REF_TOKEN_NUMBER_HEX ? 10 : 16);
+}
+
+uint32_t cj5ref_get_uint(cj5ref_result* r, int id)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_NUMBER);
+    char snum[32];
+    cj5ref__strcpy(snum, sizeof(snum), &r->json5[tok->start], tok->end - tok->start);
+    return (uint32_t)strtoul(snum, NULL, tok->num_type != CJ5REF_TOKEN_NUMBER_HEX ? 10 : 16);
+}
+
+uint64_t cj5ref_get_uint64(cj5ref_result* r, int id)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_NUMBER);
+    char snum[64];
+    cj5ref__strcpy(snum, sizeof(snum), &r->json5[tok->start], tok->end - tok->start);
+    return strtoull(snum, NULL, tok->num_type != CJ5REF_TOKEN_NUMBER_HEX ? 10 : 16);
+}
+
+int64_t cj5ref_get_int64(cj5ref_result* r, int id)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_NUMBER);
+    char snum[64];
+    cj5ref__strcpy(snum, sizeof(snum), &r->json5[tok->start], tok->end - tok->start);
+    return strtoll(snum, NULL, tok->num_type != CJ5REF_TOKEN_NUMBER_HEX ? 10 : 16);
+}
+
+bool cj5ref_get_bool(cj5ref_result* r, int id)
+{
+    CJ5REF_ASSERT(id >= 0 && id < r->num_tokens);
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_BOOL);
+    CJ5REF_ASSERT((tok->end - tok->start) >= 4);
+
+    uint32_t fourcc = *((const uint32_t*)&r->json5[tok->start]);
+    if (fourcc == CJ5REF__TRUE_FOURCC) {
+        return true;
+    } else if (fourcc == CJ5REF__FALSE_FOURCC) {
+        return false;
+    } else {
+        CJ5REF_ASSERT(0);
+        return false;
+    }
+}
+
+double cj5ref_seekget_double(cj5ref_result* r, int parent_id, const char* key, double def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_double(r, id) : def_val;
+}
+
+float cj5ref_seekget_float(cj5ref_result* r, int parent_id, const char* key, float def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_float(r, id) : def_val;
+}
+
+int cj5ref_seekget_int(cj5ref_result* r, int parent_id, const char* key, int def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_int(r, id) : def_val;
+}
+
+uint32_t cj5ref_seekget_uint(cj5ref_result* r, int parent_id, const char* key, uint32_t def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_uint(r, id) : def_val;
+}
+
+uint64_t cj5ref_seekget_uint64(cj5ref_result* r, int parent_id, const char* key, uint64_t def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_uint64(r, id) : def_val;
+}
+
+int64_t cj5ref_seekget_int64(cj5ref_result* r, int parent_id, const char* key, int64_t def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_int64(r, id) : def_val;
+}
+
+bool cj5ref_seekget_bool(cj5ref_result* r, int parent_id, const char* key, bool def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_bool(r, id) : def_val;
+}
+
+const char* cj5ref_seekget_string(cj5ref_result* r, int parent_id, const char* key, char* str,
+                               int max_str, const char* def_val)
+{
+    int id = cj5ref_seek(r, parent_id, key);
+    return id > -1 ? cj5ref_get_string(r, id, str, max_str) : def_val;
+}
+
+int cj5ref_seekget_array_double(cj5ref_result* r, int parent_id, const char* key, double* values,
+                             int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_double(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_float(cj5ref_result* r, int parent_id, const char* key, float* values,
+                            int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_float(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_int16(cj5ref_result* r, int parent_id, const char* key, int16_t* values,
+                            int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = (int16_t)cj5ref_get_int(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_uint16(cj5ref_result* r, int parent_id, const char* key, uint16_t* values,
+                             int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = (uint16_t)cj5ref_get_int(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+
+int cj5ref_seekget_array_int(cj5ref_result* r, int parent_id, const char* key, int* values,
+                          int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_int(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_uint(cj5ref_result* r, int parent_id, const char* key, uint32_t* values,
+                           int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_uint(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_uint64(cj5ref_result* r, int parent_id, const char* key, uint64_t* values,
+                             int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_uint64(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_int64(cj5ref_result* r, int parent_id, const char* key, int64_t* values,
+                            int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_int64(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_bool(cj5ref_result* r, int parent_id, const char* key, bool* values,
+                           int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            values[count++] = cj5ref_get_bool(r, i);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_seekget_array_string(cj5ref_result* r, int parent_id, const char* key, char** strs,
+                             int max_str, int max_values)
+{
+    int id = key != NULL ? cj5ref_seek(r, parent_id, key) : parent_id;
+    if (id != -1) {
+        const cj5ref_token* tok = &r->tokens[id];
+        CJ5REF__UNUSED(tok);
+        CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+        int count = 0;
+        for (int i = id + 1, ic = r->num_tokens; i < ic && r->tokens[i].parent_id == id && count < max_values; i++) {
+            cj5ref_get_string(r, i, strs[count++], max_str);
+        }
+        return count;
+    } else {
+        return 0;
+    }
+}
+
+int cj5ref_get_array_elem(cj5ref_result* r, int id, int index)
+{
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+    CJ5REF_ASSERT(index < tok->size);
+    for (int i = id + 1, count = 0, ic = r->num_tokens; i < ic && count < tok->size; i++) {
+        if (r->tokens[i].parent_id == id) {
+            if (count == index) {
+                return i;
+            }
+            count++;
+        }
+    }
+    return -1;
+}
+
+int cj5ref_get_array_elem_incremental(cj5ref_result* r, int id, int index, int prev_elem)
+{
+    const cj5ref_token* tok = &r->tokens[id];
+    CJ5REF_ASSERT(tok->type == CJ5REF_TOKEN_ARRAY);
+    CJ5REF_ASSERT(index < tok->size);
+    int start = prev_elem <= 0 ? (id + 1) : (prev_elem + 1);
+    for (int i = start, count = index, ic = r->num_tokens; i < ic && count < tok->size; i++) {
+        if (r->tokens[i].parent_id == id) {
+            if (count == index) {
+                return i;
+            }
+            count++;
+        }
+    }
+    return -1;
+}
+
+#    endif    // CJ5REF_TOKEN_HELPERS
+#endif        // CJ5REF_IMPLEMENT

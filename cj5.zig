@@ -144,48 +144,48 @@ pub const ValidateAllError = error{
     InputTooLarge,
 };
 
-/// Token store for cj5_parse_with_factory that grows through an allocator, so
-/// validation has no fixed token cap; records allocation failure separately
-/// from cj5's own overflow signal.
-const GrowStore = struct {
+/// Frame stack for cj5_validate_with_stack that grows through an allocator.
+/// Validate-only parsing keeps one frame per nesting level, so memory follows
+/// document depth rather than size; allocation failure is recorded so it is
+/// reported as such instead of as cj5's generic overflow.
+const FrameStack = struct {
     allocator: std.mem.Allocator,
-    list: std.ArrayList(c.cj5_token) = .empty,
+    list: std.ArrayList(c.cj5_frame) = .empty,
     out_of_memory: bool = false,
 
-    fn create(user: ?*anyopaque) callconv(.c) [*c]c.cj5_token {
-        const self: *GrowStore = @ptrCast(@alignCast(user.?));
-        return self.list.addOne(self.allocator) catch {
+    fn grow(user: ?*anyopaque, min_capacity: c_int, capacity: [*c]c_int) callconv(.c) [*c]c.cj5_frame {
+        const self: *FrameStack = @ptrCast(@alignCast(user.?));
+        const want: usize = @intCast(min_capacity);
+        // The parser owns the frame contents; keep them while growing.
+        self.list.items.len = self.list.capacity;
+        self.list.ensureTotalCapacity(self.allocator, @max(want, 2 * self.list.capacity)) catch {
             self.out_of_memory = true;
             return null;
         };
-    }
-
-    fn getAll(user: ?*anyopaque) callconv(.c) [*c]c.cj5_token {
-        const self: *GrowStore = @ptrCast(@alignCast(user.?));
+        const cap = @min(self.list.capacity, @as(usize, std.math.maxInt(c_int)));
+        capacity.* = @intCast(cap);
         return self.list.items.ptr;
     }
 };
 
-/// Parse the whole document with allocator-grown token storage and return the
-/// raw C result with its token pointer cleared (the tokens are freed here).
+/// Validate the whole document in validate-only mode (no tokens kept) and
+/// return the raw C result.
 fn parseUncapped(allocator: std.mem.Allocator, json: []const u8) ValidateAllError!c.cj5_result {
     if (json.len > std.math.maxInt(c_int)) return error.InputTooLarge;
-    var store: GrowStore = .{ .allocator = allocator };
-    defer store.list.deinit(allocator);
-    var r = c.cj5_parse_with_factory(json.ptr, @intCast(json.len), .{
-        .create_token = GrowStore.create,
-        .get_all = GrowStore.getAll,
-        .user_data = &store,
+    var stack: FrameStack = .{ .allocator = allocator };
+    defer stack.list.deinit(allocator);
+    const r = c.cj5_validate_with_stack(json.ptr, @intCast(json.len), .{
+        .grow = FrameStack.grow,
+        .user_data = &stack,
     });
-    // The store refuses a token only when allocation fails, so cj5's overflow
-    // signal here always means memory ran out.
-    if (store.out_of_memory or r.@"error" == c.CJ5_ERROR_OVERFLOW) return error.OutOfMemory;
-    r.tokens = null;
+    // The stack refuses only when allocation fails, so cj5's overflow signal
+    // here always means memory ran out.
+    if (stack.out_of_memory or r.@"error" == c.CJ5_ERROR_OVERFLOW) return error.OutOfMemory;
     return r;
 }
 
-/// Validate an entire JSON5 document with no token cap (memory grows with the
-/// token count). Returns valid, or invalid with the byte offset of the first
+/// Validate an entire JSON5 document with no token cap; memory grows with
+/// nesting depth only. Returns valid, or invalid with the byte offset of the first
 /// error; errors mean no verdict was reached.
 pub fn validateAll(allocator: std.mem.Allocator, json: []const u8) ValidateAllError!Verdict {
     const r = try parseUncapped(allocator, json);
@@ -547,4 +547,15 @@ test "validateAll rejects input longer than cj5's int length as InputTooLarge" {
     const p: [*]const u8 = @ptrCast(&byte);
     const huge = p[0 .. @as(usize, std.math.maxInt(c_int)) + 1];
     try std.testing.expectError(error.InputTooLarge, validateAll(std.testing.allocator, huge));
+}
+
+test "validateAll memory grows with nesting depth, not document size" {
+    // 50k elements would need ~1.6 MB of token storage; the ancestor chain
+    // needs two entries, so a 4 KiB budget must be enough.
+    const big = try buildBigArray(std.testing.allocator, 50_000, "");
+    defer std.testing.allocator.free(big);
+    var budget: [4096]u8 = undefined;
+    var fba = std.heap.FixedBufferAllocator.init(&budget);
+    const v = try validateAll(fba.allocator(), big);
+    try expectEqual(@as(usize, 50_001), v.valid.num_tokens);
 }

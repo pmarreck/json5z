@@ -1,0 +1,9 @@
+# Dirtree: Stateful directory trees in the CLI for humans and LLMs. https://github.com/pmarreck/dirtree
+ver=1.2
+annotate=[
+	PLAN.md = Ordered open work for the cj5 fork
+	mutate = Mutation control: deliberate cj5.h bugs under timeout; each must fail the tests
+	test = Complete test entry point: zig tests, ./mutate, nix flake check
+	tests/differential.zig = Three-way differential: frozen reference vs live token vs validate-only parser, seeded fuzz
+	tests/oracle/cj5_reference.h = Frozen cj5.h at 3a32d25 renamed cj5ref_*, test-only oracle
+]

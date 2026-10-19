@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Complete cj5 test entry point: unit and differential tests, the mutation
+# control, and the Nix flake check. Accumulates failures; non-zero if any fail.
+set -u
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$root" || exit 1
+failures=0
+
+run() {
+	printf '==> %s\n' "$*"
+	"$@"
+	local rc=$?
+	if [ "$rc" -ne 0 ]; then
+		printf 'FAILED (%s): %s\n' "$rc" "$*" >&2
+		failures=$((failures + 1))
+	fi
+}
+
+run nix develop -c zig build test --summary all
+run nix develop -c ./mutate
+run nix flake check
+
+exit "$failures"

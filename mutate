@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Mutation control for cj5's validate-only parser. Each mutant is a deliberate
+# bug applied to a scratch copy of the tree; `zig build test` must FAIL on it.
+# A mutant that passes (survived) or exceeds its time limit (hung) fails this
+# script, so the differential tests are shown to bite and to terminate.
+#
+# Usage: ./mutate            (run inside `nix develop`; ./test does this)
+# Env:   CJ5_MUTANT_TIMEOUT  seconds per mutant (default 300)
+set -u
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+limit="${CJ5_MUTANT_TIMEOUT:-300}"
+work="$(mktemp -d "${TMPDIR:-/tmp}/cj5-mutate.XXXXXX")"
+failures=0
+
+# replace FILE OLD NEW: exact, single-occurrence substitution (fails loudly).
+replace() {
+	luajit - "$@" <<-'LUA'
+		local path, old, new = arg[1], arg[2], arg[3]
+		local f = assert(io.open(path, "rb")); local s = f:read("*a"); f:close()
+		local a, e = s:find(old, 1, true)
+		assert(a and not s:find(old, e + 1, true), "mutation anchor missing or not unique in " .. path)
+		f = assert(io.open(path, "wb")); f:write(s:sub(1, a - 1) .. new .. s:sub(e + 1)); f:close()
+	LUA
+}
+
+mutant_chain_drops_parent() {
+	# Truncation also drops super_id's own frame, and a lookup miss silently
+	# returns the newest frame: wrong structure with no assertion.
+	replace cj5.h 'parser->chain[keep - 1].id > parser->super_id' \
+		'parser->chain[keep - 1].id >= parser->super_id' &&
+	replace cj5.h $'    CJ5_ASSERT(0);\n    parser->chain_lost = true;\n    return &parser->chain_scratch;' \
+		'    return &parser->chain[parser->chain_len - 1].token;'
+}
+
+mutant_open_count_sticks() {
+	# Closing a container never decrements the open count.
+	replace cj5.h $'                    --parser.open_count;\n' ''
+}
+
+mutants=(mutant_chain_drops_parent mutant_open_count_sticks)
+
+for m in "${mutants[@]}"; do
+	dir="$work/$m"
+	mkdir -p "$dir"
+	(cd "$root" && git ls-files -co --exclude-standard | grep -v '^inbox/') |
+		while IFS= read -r p; do
+			mkdir -p "$dir/$(dirname "$p")" && cp "$root/$p" "$dir/$p"
+		done
+	if ! (cd "$dir" && "$m"); then
+		printf 'ERROR    %s: could not apply\n' "$m"
+		failures=$((failures + 1))
+		continue
+	fi
+	(cd "$dir" && timeout --kill-after=10 "$limit" zig build test >"$dir.log" 2>&1)
+	rc=$?
+	case "$rc" in
+		0) printf 'SURVIVED %s (tests passed on a deliberate bug; log %s)\n' "$m" "$dir.log"; failures=$((failures + 1)) ;;
+		124|137) printf 'HUNG     %s (exceeded %ss; log %s)\n' "$m" "$limit" "$dir.log"; failures=$((failures + 1)) ;;
+		*) printf 'KILLED   %s\n' "$m" ;;
+	esac
+done
+
+exit "$failures"
