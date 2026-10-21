@@ -12,12 +12,11 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with unmodified upstream cj5 as the degraded differential oracle
 - [ ] C FFI plus a C CLI that validates files through it
 - [ ] Benchmark against cj5 under the performance-profiling contract
-- [ ] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z
+- [x] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z (done 2026-10-21 14:40 EDT, 03b88d8)
 - [ ] After validate has switched, delete GitHub pmarreck/cj5
 
 ## Upstream sync (requested by validate)
 
-- [x] Push master and reply to validate's inbox with the pushed SHA (done 2026-10-14 17:05 EDT, f7b960a)
 
 ## Large-document validity (requested by validate)
 
