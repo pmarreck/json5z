@@ -2,6 +2,8 @@
 ver=1.2
 annotate=[
 	PLAN.md = Ordered open work for the cj5 fork
+	cj5.h = cj5 C parser: the degraded oracle, with a validate-only O(depth) mode
+	docs/plan_context/json5z.md = json5z decision, goals and oracle order (conformance suite, cj5 degraded oracle, fuzz/mutation)
 	mutate = Mutation control: deliberate cj5.h bugs under timeout; each must fail the tests
 	test = Complete test entry point: zig tests, ./mutate, nix flake check
 	tests/differential.zig = Three-way differential: frozen reference vs live token vs validate-only parser, seeded fuzz
