@@ -20,8 +20,11 @@ Goals:
 Oracles, from most to least independent:
 
 1. The official JSON5 conformance suite (github.com/json5/json5-tests).
-2. cj5, frozen at this fork, as a degraded oracle: every disagreement must be
-   a ledgered cj5 defect, never an unexplained difference.
+2. Unmodified upstream cj5 (septag/cj5 at 5fe4821, byte-identical and
+   hash-checked) as a degraded oracle: every disagreement must be a ledgered
+   cj5 defect, never an unexplained difference. Our modified cj5 is not an
+   oracle; it is interim library code, and the frozen copy in tests/oracle
+   only checks that the validate-only refactor kept that code's behavior.
 3. Seeded fuzzing and the ./mutate mutation controls.
 
 cj5 is MIT licensed; its copyright notice stays with the frozen oracle copy.

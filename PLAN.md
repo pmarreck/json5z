@@ -1,14 +1,15 @@
 # PLAN
 
-Open work for json5z, in priority order (context: docs/plan_context/json5z.md). Remaining cj5 code is the degraded oracle. Completed items retire to `docs/PLAN_LOG.md`.
+Open work for json5z, in priority order (context: docs/plan_context/json5z.md). Modified cj5 is interim library code; only unmodified upstream cj5 is the degraded oracle. Completed items retire to `docs/PLAN_LOG.md`.
 
 ## Become json5z (spec-accurate JSON5 validation)
 
 - [x] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
 - [x] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname (done 2026-10-21 14:15 EDT)
 - [x] Create GitHub pmarreck/json5z (not a fork) and push yolo (done 2026-10-21 14:18 EDT)
+- [ ] Vendor unmodified septag/cj5 5fe4821 cj5.h under tests/upstream_cj5 with a blessed sha256 check, compiled with renamed symbols, as the degraded oracle
 - [ ] Add the official JSON5 conformance suite (json5/json5-tests) to ./test and record every cj5 disagreement in a quirk ledger
-- [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with cj5 as the degraded differential oracle
+- [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with unmodified upstream cj5 as the degraded differential oracle
 - [ ] C FFI plus a C CLI that validates files through it
 - [ ] Benchmark against cj5 under the performance-profiling contract
 - [ ] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z

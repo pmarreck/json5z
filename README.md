@@ -9,29 +9,35 @@ values.
 
 ## Status
 
-Early. The Zig validator is not written yet. This repository currently holds
-the degraded oracle described below, its tests and the controls that will
-check json5z (`./test`, `./mutate`). Open work is in [PLAN.md](PLAN.md).
+Early. The Zig validator is not written yet. Until it is, the library is an
+interim C parser derived from cj5 (described below), with its tests and the
+controls that will check json5z (`./test`, `./mutate`). Open work is in
+[PLAN.md](PLAN.md).
 
 ## How correctness is checked
 
 1. The official JSON5 conformance suite
    ([json5/json5-tests](https://github.com/json5/json5-tests)) is the source
    of truth.
-2. cj5 is a degraded oracle: an independent JSON5 parser that json5z is
-   expected to beat on both accuracy and speed. Every disagreement between
-   json5z and cj5 must be a recorded cj5 defect.
+2. Unmodified upstream cj5 ([septag/cj5](https://github.com/septag/cj5) at
+   `5fe4821`) is a degraded oracle: an independent JSON5 parser that json5z
+   is expected to beat on both accuracy and speed. Every disagreement between
+   json5z and upstream cj5 must be a recorded cj5 defect. Only septag's
+   code qualifies; our modified copy is not independent of us.
 3. Seeded fuzzing and mutation testing (`./mutate`) show the tests catch
    deliberate bugs and that no run can hang.
 
 Run everything with `./test`.
 
-## The degraded oracle: cj5
+## The interim parser: modified cj5
 
 The `cj5.h`, `cj5.c` and `cj5.zig` files come from
 [septag/cj5](https://github.com/septag/cj5) (MIT, copyright Sepehr
-Taghdisian), with a validate-only mode added here. `tests/oracle/` holds a
-frozen copy used to check that mode. cj5's original documentation follows.
+Taghdisian). They carry our grammar fixes and a validate-only mode, so they
+are our code, not an oracle. They serve as the library until the Zig
+validator replaces them. `tests/oracle/` holds a frozen copy of the modified
+parser from before the validate-only mode, used only as a refactoring
+regression check. cj5's original documentation follows.
 
 Very minimal single header JSON5 parser in C99, derived from [jsmn](https://github.com/zserge/jsmn)
 
