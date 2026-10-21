@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mutation control for cj5's validate-only parser. Each mutant is a deliberate
+# Mutation control for the interim parser's validate-only mode. Each mutant is a deliberate
 # bug applied to a scratch copy of the tree; `zig build test` must FAIL on it.
 # A mutant that passes (survived) or exceeds its time limit (hung) fails this
 # script, so the differential tests are shown to bite and to terminate.
@@ -10,7 +10,7 @@ set -u
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 limit="${CJ5_MUTANT_TIMEOUT:-300}"
-work="$(mktemp -d "${TMPDIR:-/tmp}/cj5-mutate.XXXXXX")"
+work="$(mktemp -d "${TMPDIR:-/tmp}/json5z-mutate.XXXXXX")"
 failures=0
 
 # replace FILE OLD NEW: exact, single-occurrence substitution (fails loudly).
@@ -27,15 +27,15 @@ replace() {
 mutant_chain_drops_parent() {
 	# Truncation also drops super_id's own frame, and a lookup miss silently
 	# returns the newest frame: wrong structure with no assertion.
-	replace cj5.h 'parser->chain[keep - 1].id > parser->super_id' \
+	replace interim/cj5_modified/cj5.h 'parser->chain[keep - 1].id > parser->super_id' \
 		'parser->chain[keep - 1].id >= parser->super_id' &&
-	replace cj5.h $'    CJ5_ASSERT(0);\n    parser->chain_lost = true;\n    return &parser->chain_scratch;' \
+	replace interim/cj5_modified/cj5.h $'    CJ5_ASSERT(0);\n    parser->chain_lost = true;\n    return &parser->chain_scratch;' \
 		'    return &parser->chain[parser->chain_len - 1].token;'
 }
 
 mutant_open_count_sticks() {
 	# Closing a container never decrements the open count.
-	replace cj5.h $'                    --parser.open_count;\n' ''
+	replace interim/cj5_modified/cj5.h $'                    --parser.open_count;\n' ''
 }
 
 mutants=(mutant_chain_drops_parent mutant_open_count_sticks)

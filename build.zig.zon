@@ -6,9 +6,7 @@
     .paths = .{
         "build.zig",
         "build.zig.zon",
-        "cj5.c",
-        "cj5.h",
-        "cj5.zig",
+        "interim",
         "flake.nix",
         "LICENSE",
         "README.md",

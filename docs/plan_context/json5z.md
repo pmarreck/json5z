@@ -24,7 +24,8 @@ Oracles, from most to least independent:
    hash-checked) as a degraded oracle: every disagreement must be a ledgered
    cj5 defect, never an unexplained difference. Our modified cj5 is not an
    oracle; it is interim library code, and the frozen copy in tests/oracle
-   only checks that the validate-only refactor kept that code's behavior.
+   (now under interim/cj5_modified, deleted once the Zig validator replaces
+   it) only checks that the validate-only refactor kept that code's behavior.
 3. Seeded fuzzing and the ./mutate mutation controls.
 
 cj5 is MIT licensed; its copyright notice stays with the frozen oracle copy.

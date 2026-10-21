@@ -31,11 +31,12 @@ Run everything with `./test`.
 
 ## The interim parser: modified cj5
 
-The `cj5.h`, `cj5.c` and `cj5.zig` files come from
+The files in `interim/cj5_modified/` come from
 [septag/cj5](https://github.com/septag/cj5) (MIT, copyright Sepehr
 Taghdisian). They carry our grammar fixes and a validate-only mode, so they
 are our code, not an oracle. They serve as the library until the Zig
-validator replaces them. `tests/oracle/` holds a frozen copy of the modified
+validator replaces them, and then the directory is deleted. Its
+`tests/oracle/` holds a frozen copy of the modified
 parser from before the validate-only mode, used only as a refactoring
 regression check. cj5's original documentation follows.
 

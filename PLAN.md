@@ -7,10 +7,12 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
 - [x] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname (done 2026-10-21 14:15 EDT)
 - [x] Create GitHub pmarreck/json5z (not a fork) and push yolo (done 2026-10-21 14:18 EDT)
+- [x] Quarantine the modified cj5 and its refactoring check under interim/cj5_modified (done 2026-10-21 14:55 EDT)
 - [ ] Vendor unmodified septag/cj5 5fe4821 cj5.h under tests/upstream_cj5 with a blessed sha256 check, compiled with renamed symbols, as the degraded oracle
 - [ ] Add the official JSON5 conformance suite (json5/json5-tests) to ./test and record every cj5 disagreement in a quirk ledger
 - [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with unmodified upstream cj5 as the degraded differential oracle
 - [ ] C FFI plus a C CLI that validates files through it
+- [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [ ] Benchmark against cj5 under the performance-profiling contract
 - [x] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z (done 2026-10-21 14:40 EDT, 03b88d8)
 - [ ] After validate has switched, delete GitHub pmarreck/cj5
@@ -20,7 +22,6 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Large-document validity (requested by validate)
 
-- [x] Add uncapped `validateAll` (allocator-grown tokens, byte offset of first error) and stop `isValid`/`validate` reporting overflow as valid (done 2026-10-14 17:35 EDT)
 - [x] Reply to validate with the pushed SHA and the new API shape (done 2026-10-14 17:38 EDT, 3a32d25)
 - [x] Add a validate-only cj5 path with O(depth) state (no token storage), proven against a frozen pre-refactor parser by differential corpus and fuzz tests; repoint validateAll/isValid at it (done 2026-10-18 23:40 EDT)
 - [x] Bound the `}` parent walk so a corrupt chain ends with no verdict instead of spinning; add ./mutate with per-mutant timeouts (done 2026-10-18 23:40 EDT)

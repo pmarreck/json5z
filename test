@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Complete cj5 test entry point: unit and differential tests, the mutation
+# Complete json5z test entry point: unit and differential tests, the mutation
 # control, and the Nix flake check. Accumulates failures; non-zero if any fail.
 set -u
 
