@@ -1,6 +1,18 @@
 # PLAN
 
-Open work for the cj5 fork, in priority order. Completed items retire to `docs/PLAN_LOG.md`.
+Open work, in priority order. This repository is becoming json5z (context: docs/plan_context/json5z.md). Completed items retire to `docs/PLAN_LOG.md`.
+
+## Become json5z (spec-accurate JSON5 validation)
+
+- [x] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
+- [ ] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname
+- [ ] Create GitHub pmarreck/json5z (not a fork) and push yolo
+- [ ] Add the official JSON5 conformance suite (json5/json5-tests) to ./test and record every cj5 disagreement in a quirk ledger
+- [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with cj5 as the degraded differential oracle
+- [ ] C FFI plus a C CLI that validates files through it
+- [ ] Benchmark against cj5 under the performance-profiling contract
+- [ ] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z
+- [ ] After validate has switched, delete GitHub pmarreck/cj5
 
 ## Upstream sync (requested by validate)
 
