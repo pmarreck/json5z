@@ -1,5 +1,5 @@
 {
-	description = "cj5 JSON5 parser - Zig bindings for the C library";
+	description = "json5z: spec-accurate JSON5 validation in Zig";
 
 	inputs = {
 		nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
@@ -22,7 +22,7 @@
 					};
 				});
 
-			# `nix flake check` / Garnix run this: it actually executes `zig build test`.
+			# `nix flake check` runs `zig build test` inside the Nix sandbox.
 			checks = forAllSystems (system:
 				let
 					pkgs = import nixpkgs { inherit system; };
@@ -36,7 +36,7 @@
 						else "native";
 				in {
 					tests = pkgs.stdenvNoCC.mkDerivation {
-						name = "cj5-tests";
+						name = "json5z-tests";
 						src = ./.;
 						nativeBuildInputs = [ pkgs.zig ];
 						dontConfigure = true;

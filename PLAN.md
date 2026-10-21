@@ -1,11 +1,11 @@
 # PLAN
 
-Open work, in priority order. This repository is becoming json5z (context: docs/plan_context/json5z.md). Completed items retire to `docs/PLAN_LOG.md`.
+Open work for json5z, in priority order (context: docs/plan_context/json5z.md). Remaining cj5 code is the degraded oracle. Completed items retire to `docs/PLAN_LOG.md`.
 
 ## Become json5z (spec-accurate JSON5 validation)
 
 - [x] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
-- [ ] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname
+- [x] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname (done 2026-10-21 14:15 EDT)
 - [ ] Create GitHub pmarreck/json5z (not a fork) and push yolo
 - [ ] Add the official JSON5 conformance suite (json5/json5-tests) to ./test and record every cj5 disagreement in a quirk ledger
 - [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with cj5 as the degraded differential oracle
@@ -16,7 +16,6 @@ Open work, in priority order. This repository is becoming json5z (context: docs/
 
 ## Upstream sync (requested by validate)
 
-- [x] Merge upstream septag/cj5 5fe4821 (token factory, short-primitive memcpy fix) into master, porting fork fixes to `parser.tokens` (done 2026-10-14 16:55 EDT, f7b960a)
 - [x] Refresh flake inputs (nixpkgs 2026-10-10, Zig 0.16.0) and pass `zig build test` plus `nix flake check` (done 2026-10-14 16:55 EDT, f7b960a)
 - [x] Push master and reply to validate's inbox with the pushed SHA (done 2026-10-14 17:05 EDT, f7b960a)
 

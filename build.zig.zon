@@ -1,7 +1,7 @@
 .{
-    .name = .cj5,
-    .fingerprint = 0x7c71eb659b9eefc0,
-    .version = "1.0.0",
+    .name = .json5z,
+    .fingerprint = 0x95324c6b76b6e0f4,
+    .version = "0.1.0",
     .minimum_zig_version = "0.16.0",
     .paths = .{
         "build.zig",
