@@ -8,3 +8,7 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Upstream sync (requested by validate)] Refresh flake inputs (nixpkgs 2026-10-10, Zig 0.16.0) and pass `zig build test` plus `nix flake check` (done 2026-10-14 16:55 EDT, f7b960a)
 - [x] [Upstream sync (requested by validate)] Push master and reply to validate's inbox with the pushed SHA (done 2026-10-14 17:05 EDT, f7b960a)
 - [x] [Large-document validity (requested by validate)] Add uncapped `validateAll` (allocator-grown tokens, byte offset of first error) and stop `isValid`/`validate` reporting overflow as valid (done 2026-10-14 17:35 EDT)
+
+## Retired 2026-10-23
+
+- [x] [Large-document validity (requested by validate)] Reply to validate with the pushed SHA and the new API shape (done 2026-10-14 17:38 EDT, 3a32d25)
