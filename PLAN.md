@@ -4,7 +4,6 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Become json5z (spec-accurate JSON5 validation)
 
-- [x] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
 - [x] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname (done 2026-10-21 14:15 EDT)
 - [x] Create GitHub pmarreck/json5z (not a fork) and push yolo (done 2026-10-21 14:18 EDT)
 - [x] Quarantine the modified cj5 and its refactoring check under interim/cj5_modified (done 2026-10-21 14:55 EDT)
@@ -12,7 +11,7 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] Add the official JSON5 conformance suite (json5/json5-tests ceb24d4) to ./test with exact disagreement ledgers: upstream and interim cj5 each miss 51 of 114 cases (done 2026-10-23 12:20 EDT)
 - [x] Write the Zig-core streaming validator (one bit per open container, chunked feed) test-first; it passes all 114 conformance cases with an empty ledger (done 2026-10-23 12:45 EDT)
 - [x] Mutants for json5z itself (raw LF in strings, surrogates, literal letters, object comma) all caught; one found a test gap, another found dead code (done 2026-10-23 12:58 EDT)
-- [ ] Differential fuzz against the reference JavaScript json5 library, plus random chunk-split invariance
+- [x] Differential fuzz against the reference JavaScript json5 library (npm 2.2.3) plus random chunk-split invariance; 20k cases in ./test, 0 disagreements, bites on a planted bug (done 2026-10-23 13:02 EDT)
 - [ ] C FFI plus a C CLI that validates files through it
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [ ] Benchmark against cj5 under the performance-profiling contract

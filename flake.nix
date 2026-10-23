@@ -9,6 +9,17 @@
 		let
 			systems = [ "aarch64-darwin" "x86_64-darwin" "x86_64-linux" "aarch64-linux" ];
 			forAllSystems = nixpkgs.lib.genAttrs systems;
+			# Reference JSON5 implementation for differential fuzzing (npm json5,
+			# pinned by its published sha512).
+			json5Reference = pkgs: pkgs.runCommand "json5-reference-2.2.3" {
+				src = pkgs.fetchurl {
+					url = "https://registry.npmjs.org/json5/-/json5-2.2.3.tgz";
+					hash = "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==";
+				};
+			} ''
+				mkdir -p $out
+				tar xzf $src -C $out --strip-components=1
+			'';
 		in {
 			devShells = forAllSystems (system:
 				let
@@ -18,7 +29,10 @@
 						packages = with pkgs; [
 							zig
 							git
+							luajit
+							nodejs
 						];
+						JSON5_REFERENCE = json5Reference pkgs;
 					};
 				});
 

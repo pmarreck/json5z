@@ -111,4 +111,24 @@ pub fn build(b: *std.Build) void {
         }),
     });
     test_step.dependOn(&b.addRunArtifact(conformance).step);
+
+    // WebAssembly build of the core for the differential fuzzer (./fuzz).
+    const wasm_target = b.resolveTargetQuery(.{ .cpu_arch = .wasm32, .os_tag = .freestanding });
+    const wasm = b.addExecutable(.{
+        .name = "json5z",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/fuzz/json5z_wasm.zig"),
+            .target = wasm_target,
+            .optimize = .ReleaseSafe,
+            .imports = &.{.{ .name = "json5z", .module = b.createModule(.{
+                .root_source_file = b.path("src/json5z.zig"),
+                .target = wasm_target,
+                .optimize = .ReleaseSafe,
+            }) }},
+        }),
+    });
+    wasm.entry = .disabled;
+    wasm.rdynamic = true;
+    const fuzz_wasm = b.step("fuzz-wasm", "Build the json5z WebAssembly module for ./fuzz");
+    fuzz_wasm.dependOn(&b.addInstallArtifact(wasm, .{ .dest_dir = .{ .override = .{ .custom = "fuzz" } } }).step);
 }

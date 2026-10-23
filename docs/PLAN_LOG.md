@@ -16,3 +16,4 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Large-document validity (requested by validate)] Bound the `}` parent walk so a corrupt chain ends with no verdict instead of spinning; add ./mutate with per-mutant timeouts (done 2026-10-18 23:40 EDT)
 - [x] [Housekeeping] Add a `./test` entry point that runs `zig build test`, ./mutate and the flake check (done 2026-10-18 23:40 EDT)
 - [x] [Large-document validity (requested by validate)] Tell validate that validateAll now uses memory proportional to nesting depth (done 2026-10-18 23:45 EDT, dd955d2)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)

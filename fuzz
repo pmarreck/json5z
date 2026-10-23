@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Bounded differential fuzz campaign: json5z against the reference JavaScript
+# json5 library, plus chunk-split invariance. Run inside `nix develop` (./test
+# does this), which provides node and JSON5_REFERENCE.
+#
+# Usage: ./fuzz [SEED] [COUNT]     (defaults: 1, 20000)
+set -u
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$root" || exit 1
+seed="${1:-1}"
+count="${2:-20000}"
+if [ -z "${JSON5_REFERENCE:-}" ]; then
+	echo "fuzz: JSON5_REFERENCE is unset; run inside nix develop" >&2
+	exit 1
+fi
+zig build fuzz-wasm || exit 1
+timeout --kill-after=10 "${JSON5Z_FUZZ_TIMEOUT:-300}" node tests/fuzz/differential.mjs zig-out/fuzz/json5z.wasm "$seed" "$count"
