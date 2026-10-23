@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Mutation control for the interim parser's validate-only mode. Each mutant is a deliberate
+# Mutation control for the interim parser's validate-only mode and the
+# degraded oracle's integrity check. Each mutant is a deliberate
 # bug applied to a scratch copy of the tree; `zig build test` must FAIL on it.
 # A mutant that passes (survived) or exceeds its time limit (hung) fails this
 # script, so the differential tests are shown to bite and to terminate.
@@ -38,7 +39,12 @@ mutant_open_count_sticks() {
 	replace interim/cj5_modified/cj5.h $'                    --parser.open_count;\n' ''
 }
 
-mutants=(mutant_chain_drops_parent mutant_open_count_sticks)
+mutant_oracle_edited() {
+	# One appended byte in the vendored upstream cj5.h; the blessed hash must catch it.
+	printf '\n' >>tests/upstream_cj5/cj5.h
+}
+
+mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited)
 
 for m in "${mutants[@]}"; do
 	dir="$work/$m"

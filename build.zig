@@ -72,4 +72,19 @@ pub fn build(b: *std.Build) void {
         .flags = &.{"-std=c99"},
     });
     test_step.dependOn(&b.addRunArtifact(diff_tests).step);
+
+    // Degraded oracle: unmodified upstream cj5 (hash-checked), judged through
+    // a wrapper that compiles it with every symbol static.
+    const upstream_cj5 = b.createModule(.{
+        .root_source_file = b.path("tests/upstream_cj5/upstream_cj5_test.zig"),
+        .target = target,
+        .optimize = optimize,
+        .link_libc = true,
+    });
+    upstream_cj5.addIncludePath(b.path("tests/upstream_cj5"));
+    upstream_cj5.addCSourceFile(.{
+        .file = b.path("tests/upstream_cj5/upstream_cj5_judge.c"),
+        .flags = &.{"-std=c11"},
+    });
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = upstream_cj5 })).step);
 }
