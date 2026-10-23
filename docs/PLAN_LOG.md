@@ -19,3 +19,6 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Become json5z (spec-accurate JSON5 validation)] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname (done 2026-10-21 14:15 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] Create GitHub pmarreck/json5z (not a fork) and push yolo (done 2026-10-21 14:18 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Quarantine the modified cj5 and its refactoring check under interim/cj5_modified (done 2026-10-21 14:55 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z (done 2026-10-21 14:40 EDT, 03b88d8)
+- [x] [Become json5z (spec-accurate JSON5 validation)] After validate switched (validate 40ec7df70), archive GitHub pmarreck/cj5 so old validate commits stay buildable (done 2026-10-23 11:27 EDT)

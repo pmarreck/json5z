@@ -1,0 +1,796 @@
+# JSON5 1.0.0 independent spec corpus.
+# Every verdict derived from https://spec.json5.org/ (JSON5 1.0.0) and the
+# ECMAScript 5.1 lexical grammar sections it references, plus the UTF-8
+# validity rule (RFC 3629). No parser was consulted.
+# Format: ID<TAB>VERDICT<TAB>PRODUCTION<TAB>INPUT
+# INPUT escapes: \\ backslash, \t, \n, \r, \xHH raw byte, \u{H...} code point as UTF-8.
+
+# ---------------------------------------------------------------------------
+# Top level (JSON5Text: exactly one JSON5Value)
+# ---------------------------------------------------------------------------
+top-null	accept	JSON5Text	null
+top-true	accept	JSON5Text	true
+top-false	accept	JSON5Text	false
+top-number	accept	JSON5Text	42
+top-single-string	accept	JSON5Text	'x'
+top-double-string	accept	JSON5Text	"x"
+top-object	accept	JSON5Text	{}
+top-array	accept	JSON5Text	[]
+top-infinity	accept	JSON5Text	Infinity
+top-nan	accept	JSON5Text	NaN
+top-empty	reject	JSON5Text	
+top-space-only	reject	JSON5Text	\x20
+top-whitespace-only-mixed	reject	JSON5Text	\t\n\r \x0B\x0C
+top-line-comment-only	reject	JSON5Text	// nothing here
+top-block-comment-only	reject	JSON5Text	/* nothing here */
+top-bom-only	reject	JSON5Text	\u{FEFF}
+top-two-numbers	reject	JSON5Text	1 2
+top-two-objects	reject	JSON5Text	{} {}
+top-two-arrays-adjacent	reject	JSON5Text	[][]
+top-two-strings	reject	JSON5Text	'a' 'b'
+top-two-values-comma	reject	JSON5Text	1,2
+top-trailing-comma	reject	JSON5Text	1,
+top-leading-comma	reject	JSON5Text	,1
+top-lone-comma	reject	JSON5Text	,
+top-lone-colon	reject	JSON5Text	:
+top-member-without-braces	reject	JSON5Text	a:1
+top-bare-identifier	reject	JSON5Value	foo
+top-undefined	reject	JSON5Value	undefined
+top-leading-trailing-whitespace	accept	JSON5Text	\n\t 1 \r\n
+top-value-then-garbage	reject	JSON5Text	null x
+top-value-then-closer	reject	JSON5Text	[]]
+top-backtick-string	reject	JSON5String	`x`
+
+# ---------------------------------------------------------------------------
+# Literals null true false (NullLiteral, BooleanLiteral) and near misses
+# ---------------------------------------------------------------------------
+lit-null-in-array	accept	JSON5Null	[null]
+lit-booleans-in-array	accept	JSON5Boolean	[true,false]
+lit-null-capital	reject	JSON5Null	Null
+lit-null-upper	reject	JSON5Null	NULL
+lit-null-truncated	reject	JSON5Null	nul
+lit-null-extended-letter	reject	JSON5Null	nullx
+lit-null-extended-underscore	reject	JSON5Null	null_
+lit-null-extended-digit	reject	JSON5Null	null1
+lit-null-extended-dollar	reject	JSON5Null	null$
+lit-null-extended-unicode-letter	reject	JSON5Null	null\u{E9}
+# UNSURE: n\\u0075ll as a value. JSON5Null::NullLiteral and ES5.1 7.8.1 NullLiteral::null spell the characters n,u,l,l, which an escape does not match, so reject is the grammatical reading; but ES5.1 7.6 says "All interpretations of identifiers ... are based upon their actual characters regardless of whether or not an escape sequence was used", which some read as making it the reserved word null.
+lit-true-capital	reject	JSON5Boolean	True
+lit-true-upper	reject	JSON5Boolean	TRUE
+lit-true-truncated	reject	JSON5Boolean	tru
+lit-true-extended	reject	JSON5Boolean	truex
+lit-false-capital	reject	JSON5Boolean	False
+lit-false-truncated	reject	JSON5Boolean	fals
+lit-false-extended	reject	JSON5Boolean	false_
+lit-false-split-by-space	reject	JSON5Boolean	fal se
+lit-null-signed	reject	JSON5Number	-null
+lit-true-signed	reject	JSON5Number	+true
+lit-null-quoted-is-string	accept	JSON5String	'null'
+lit-null-adjacent-comment	accept	JSON5Null	null/**/
+lit-true-in-object	accept	JSON5Boolean	{a:true,b:false,c:null}
+
+# ---------------------------------------------------------------------------
+# Numbers: decimal (ES5.1 7.8.3 DecimalLiteral via JSON5NumericLiteral)
+# ---------------------------------------------------------------------------
+num-zero	accept	JSON5Number	0
+num-int	accept	JSON5Number	123
+num-int-long	accept	JSON5Number	12345678901234567890
+num-negative-int	accept	JSON5Number	-123
+num-plus-int	accept	JSON5Number	+123
+num-negative-zero	accept	JSON5Number	-0
+num-plus-zero	accept	JSON5Number	+0
+num-fraction	accept	JSON5Number	123.456
+num-zero-fraction	accept	JSON5Number	0.5
+num-zero-point-zero	accept	JSON5Number	0.0
+num-leading-point	accept	JSON5Number	.5
+num-leading-point-zero	accept	JSON5Number	.0
+num-leading-point-negative	accept	JSON5Number	-.5
+num-leading-point-plus	accept	JSON5Number	+.5
+num-trailing-point	accept	JSON5Number	5.
+num-trailing-point-zero	accept	JSON5Number	0.
+num-trailing-point-negative	accept	JSON5Number	-5.
+num-trailing-point-in-array	accept	JSON5Number	[1.,2.]
+num-fraction-many-zeros	accept	JSON5Number	1.000000
+num-exp-lower	accept	JSON5Number	1e3
+num-exp-upper	accept	JSON5Number	1E3
+num-exp-plus	accept	JSON5Number	1e+3
+num-exp-minus	accept	JSON5Number	1e-3
+num-exp-leading-zeros	accept	JSON5Number	1e007
+num-exp-zero	accept	JSON5Number	0e0
+num-fraction-exp	accept	JSON5Number	123.456e-7
+num-trailing-point-exp	accept	JSON5Number	1.e3
+num-leading-point-exp	accept	JSON5Number	.5E-3
+num-zero-trailing-point-exp	accept	JSON5Number	0.e1
+num-negative-exp-number	accept	JSON5Number	-1.5e+10
+num-huge-exponent	accept	JSON5Number	1e400
+num-leading-zero	reject	ES5.1-7.8.3-DecimalIntegerLiteral	01
+num-double-zero	reject	ES5.1-7.8.3-DecimalIntegerLiteral	00
+num-leading-zero-eight	reject	ES5.1-7.8.3-DecimalIntegerLiteral	08
+num-leading-zero-negative	reject	ES5.1-7.8.3-DecimalIntegerLiteral	-01
+num-leading-zero-fraction	reject	ES5.1-7.8.3-DecimalIntegerLiteral	00.5
+num-leading-zero-in-array	reject	ES5.1-7.8.3-DecimalIntegerLiteral	[07]
+num-lone-point	reject	ES5.1-7.8.3	.
+num-lone-point-negative	reject	ES5.1-7.8.3	-.
+num-lone-point-plus	reject	ES5.1-7.8.3	+.
+num-point-exp-no-digits	reject	ES5.1-7.8.3	.e1
+num-double-point	reject	ES5.1-7.8.3	1..2
+num-two-fractions	reject	ES5.1-7.8.3	1.5.5
+num-exp-no-digits	reject	ES5.1-7.8.3-ExponentPart	1e
+num-exp-upper-no-digits	reject	ES5.1-7.8.3-ExponentPart	1E
+num-exp-plus-no-digits	reject	ES5.1-7.8.3-ExponentPart	1e+
+num-exp-minus-no-digits	reject	ES5.1-7.8.3-ExponentPart	1e-
+num-exp-in-array-no-digits	reject	ES5.1-7.8.3-ExponentPart	[1e]
+num-exp-double-e	reject	ES5.1-7.8.3-ExponentPart	1ee1
+num-exp-double-sign	reject	ES5.1-7.8.3-ExponentPart	1e+-1
+num-exp-fraction	reject	ES5.1-7.8.3-ExponentPart	1e1.5
+num-exp-twice	reject	ES5.1-7.8.3-ExponentPart	1e1e1
+num-trailing-point-exp-no-digits	reject	ES5.1-7.8.3-ExponentPart	1.e
+num-exp-only	reject	JSON5Value	e1
+num-exp-space-before-digits	reject	ES5.1-7.8.3-ExponentPart	1e 1
+num-numeric-separator	reject	ES5.1-7.8.3	1_000
+num-bigint-suffix	reject	ES5.1-7.8.3	1n
+num-comma-decimal	reject	ES5.1-7.8.3	1,5
+num-binary-literal	reject	ES5.1-7.8.3	0b1
+num-octal-literal-es6	reject	ES5.1-7.8.3	0o7
+
+# ---------------------------------------------------------------------------
+# Numbers: hexadecimal (ES5.1 7.8.3 HexIntegerLiteral)
+# ---------------------------------------------------------------------------
+num-hex-lower-x	accept	ES5.1-7.8.3-HexIntegerLiteral	0xdecaf
+num-hex-uppercase-x	accept	ES5.1-7.8.3-HexIntegerLiteral	0XDECAF
+num-hex-mixed-digits	accept	ES5.1-7.8.3-HexIntegerLiteral	0xAbCdEf
+num-hex-zero	accept	ES5.1-7.8.3-HexIntegerLiteral	0x0
+num-hex-leading-zeros	accept	ES5.1-7.8.3-HexIntegerLiteral	0x00FF
+num-hex-all-digits	accept	ES5.1-7.8.3-HexIntegerLiteral	0x0123456789abcdefABCDEF
+num-hex-negative	accept	JSON5Number	-0xC0FFEE
+num-hex-plus	accept	JSON5Number	+0x1
+num-hex-long	accept	ES5.1-7.8.3-HexIntegerLiteral	0xFFFFFFFFFFFFFFFFFFFF
+num-hex-no-digits	reject	ES5.1-7.8.3-HexIntegerLiteral	0x
+num-hex-upper-no-digits	reject	ES5.1-7.8.3-HexIntegerLiteral	0X
+num-hex-negative-no-digits	reject	ES5.1-7.8.3-HexIntegerLiteral	-0x
+num-hex-bad-digit	reject	ES5.1-7.8.3-HexIntegerLiteral	0xg
+num-hex-fraction	reject	ES5.1-7.8.3-HexIntegerLiteral	0x1.5
+num-hex-point-digits	reject	ES5.1-7.8.3-HexIntegerLiteral	0x.1
+num-hex-exponent-p	reject	ES5.1-7.8.3-HexIntegerLiteral	0x1p3
+num-hex-sign-inside	reject	ES5.1-7.8.3-HexIntegerLiteral	0x-1
+num-hex-leading-zero-prefix	reject	ES5.1-7.8.3-HexIntegerLiteral	00x1
+num-hex-one-prefix	reject	ES5.1-7.8.3-HexIntegerLiteral	1x1
+num-hex-no-zero	reject	ES5.1-7.8.3-HexIntegerLiteral	x1
+num-hex-bigint-suffix	reject	ES5.1-7.8.3-HexIntegerLiteral	0xFFn
+num-hex-space-after-prefix	reject	ES5.1-7.8.3-HexIntegerLiteral	0x 1
+
+# ---------------------------------------------------------------------------
+# Numbers: Infinity, NaN, and signs (JSON5Number, JSON5NumericLiteral)
+# ---------------------------------------------------------------------------
+num-infinity	accept	JSON5NumericLiteral	Infinity
+num-infinity-plus	accept	JSON5Number	+Infinity
+num-infinity-minus	accept	JSON5Number	-Infinity
+num-nan	accept	JSON5NumericLiteral	NaN
+num-nan-plus	accept	JSON5Number	+NaN
+num-nan-minus	accept	JSON5Number	-NaN
+num-infinity-in-array	accept	JSON5Number	[Infinity,-Infinity,NaN]
+num-infinity-lower	reject	JSON5NumericLiteral	infinity
+num-infinity-upper	reject	JSON5NumericLiteral	INFINITY
+num-infinity-minus-lower	reject	JSON5NumericLiteral	-infinity
+num-infinity-truncated	reject	JSON5NumericLiteral	Infinit
+num-inf-short	reject	JSON5NumericLiteral	Inf
+num-inf-short-negative	reject	JSON5NumericLiteral	-Inf
+num-infinity-extended	reject	JSON5NumericLiteral	Infinityx
+num-infinity-extended-digit	reject	JSON5NumericLiteral	Infinity1
+num-infinity-fraction	reject	JSON5NumericLiteral	Infinity.0
+# UNSURE: Infinit\\u0079 as a value. Same question as n\\u0075ll: the JSON5NumericLiteral alternative is the literal characters "Infinity", so reject is the grammatical reading, but ES5.1 7.6 interprets escaped IdentifierNames by their actual characters.
+num-nan-lower	reject	JSON5NumericLiteral	nan
+num-nan-upper	reject	JSON5NumericLiteral	NAN
+num-nan-mixed	reject	JSON5NumericLiteral	Nan
+num-nan-extended	reject	JSON5NumericLiteral	NaNa
+num-nan-truncated	reject	JSON5NumericLiteral	Na
+num-double-minus	reject	JSON5Number	--1
+num-double-plus	reject	JSON5Number	++1
+num-plus-minus	reject	JSON5Number	+-1
+num-minus-plus	reject	JSON5Number	-+1
+num-double-minus-infinity	reject	JSON5Number	--Infinity
+num-double-sign-nan	reject	JSON5Number	+-NaN
+num-double-minus-hex	reject	JSON5Number	--0x1
+num-lone-minus	reject	JSON5Number	-
+num-lone-plus	reject	JSON5Number	+
+num-minus-in-array	reject	JSON5Number	[-]
+num-space-after-minus	reject	JSON5Number	- 1
+num-space-after-plus	reject	JSON5Number	+ 1
+num-tab-after-minus	reject	JSON5Number	-\t1
+num-newline-after-minus	reject	JSON5Number	-\n1
+num-comment-after-minus	reject	JSON5Number	-/**/1
+num-space-minus-infinity	reject	JSON5Number	- Infinity
+num-space-plus-nan	reject	JSON5Number	+ NaN
+num-trailing-minus	reject	JSON5Number	1-
+num-trailing-plus	reject	JSON5Number	1+
+num-addition	reject	JSON5Text	1+1
+num-subtraction-spaced	reject	JSON5Text	1 - 1
+num-signed-string	reject	JSON5Number	-'1'
+num-signed-array	reject	JSON5Number	-[1]
+num-signed-object	reject	JSON5Number	+{}
+
+# ---------------------------------------------------------------------------
+# Character immediately after a NumericLiteral (ES5.1 7.8.3 last paragraph)
+# ---------------------------------------------------------------------------
+num-follow-letter	reject	ES5.1-7.8.3-following-char	1a
+num-follow-letter-in-array	reject	ES5.1-7.8.3-following-char	[1a]
+num-follow-dollar	reject	ES5.1-7.8.3-following-char	1$
+num-follow-underscore	reject	ES5.1-7.8.3-following-char	1_
+num-follow-backslash-escape	reject	ES5.1-7.8.3-following-char	1\\u0061
+num-follow-unicode-letter	reject	ES5.1-7.8.3-following-char	1\u{E9}
+num-follow-cjk-letter	reject	ES5.1-7.8.3-following-char	1\u{4E2D}
+num-follow-letter-after-fraction	reject	ES5.1-7.8.3-following-char	1.5x
+num-follow-letter-after-exponent	reject	ES5.1-7.8.3-following-char	1e5x
+num-follow-letter-after-trailing-point	reject	ES5.1-7.8.3-following-char	1.x
+num-follow-letter-after-hex	reject	ES5.1-7.8.3-following-char	0x1g
+num-follow-digit-after-zero	reject	ES5.1-7.8.3-following-char	[08]
+num-follow-letter-in-object	reject	ES5.1-7.8.3-following-char	{a:1b}
+num-follow-comma-ok	accept	ES5.1-7.8.3-following-char	[1,2]
+num-follow-bracket-ok	accept	ES5.1-7.8.3-following-char	[0x1F]
+num-follow-brace-ok	accept	ES5.1-7.8.3-following-char	{a:1.5e3}
+num-follow-line-comment-ok	accept	ES5.1-7.8.3-following-char	1//c
+num-follow-block-comment-ok	accept	ES5.1-7.8.3-following-char	1/**/
+
+# ---------------------------------------------------------------------------
+# Strings: quoting (JSON5String)
+# ---------------------------------------------------------------------------
+str-double-empty	accept	JSON5String	""
+str-single-empty	accept	JSON5String	''
+str-double-ascii	accept	JSON5String	"hello world"
+str-single-ascii	accept	JSON5String	'hello world'
+str-single-inside-double	accept	JSON5DoubleStringCharacter	"it's"
+str-double-inside-single	accept	JSON5SingleStringCharacter	'say "hi"'
+str-mismatched-single-double	reject	JSON5String	'a"
+str-mismatched-double-single	reject	JSON5String	"a'
+str-unterminated-double	reject	JSON5String	"abc
+str-unterminated-single	reject	JSON5String	'abc
+str-lone-double-quote	reject	JSON5String	"
+str-lone-single-quote	reject	JSON5String	'
+str-unescaped-double-in-double	reject	JSON5DoubleStringCharacter	"a"b"
+str-unescaped-single-in-single	reject	JSON5SingleStringCharacter	'a'b'
+str-escaped-single-in-single	accept	ES5.1-7.8.4-SingleEscapeCharacter	'a\\'b'
+str-escaped-double-in-double	accept	ES5.1-7.8.4-SingleEscapeCharacter	"a\\"b"
+str-escaped-single-in-double	accept	ES5.1-7.8.4-SingleEscapeCharacter	"a\\'b"
+str-escaped-double-in-single	accept	ES5.1-7.8.4-SingleEscapeCharacter	'a\\"b'
+str-concatenation	reject	JSON5Text	'a'+'b'
+str-unicode-content	accept	JSON5String	'\u{E9}\u{4E2D}\u{1F600}'
+str-comment-markers-inside	accept	JSON5String	'// not /* a comment */'
+str-bom-inside	accept	JSON5String	'\u{FEFF}'
+
+# ---------------------------------------------------------------------------
+# Strings: raw characters (SourceCharacter but not quote, \, LineTerminator)
+# ---------------------------------------------------------------------------
+str-raw-tab	accept	JSON5DoubleStringCharacter	"a\tb"
+str-raw-nul	accept	JSON5DoubleStringCharacter	"a\x00b"
+str-raw-control-01	accept	JSON5DoubleStringCharacter	"\x01"
+str-raw-control-1f	accept	JSON5SingleStringCharacter	'\x1F'
+str-raw-vt	accept	JSON5DoubleStringCharacter	"\x0B"
+str-raw-ff	accept	JSON5DoubleStringCharacter	"\x0C"
+str-raw-del	accept	JSON5DoubleStringCharacter	"\x7F"
+str-raw-nel	accept	JSON5DoubleStringCharacter	"a\u{85}b"
+str-raw-lf-double	reject	JSON5DoubleStringCharacter	"a\nb"
+str-raw-lf-single	reject	JSON5SingleStringCharacter	'a\nb'
+str-raw-cr-double	reject	JSON5DoubleStringCharacter	"a\rb"
+str-raw-cr-single	reject	JSON5SingleStringCharacter	'a\rb'
+str-raw-crlf	reject	JSON5DoubleStringCharacter	"a\r\nb"
+str-raw-ls-double	accept	JSON5DoubleStringCharacter/U+2028	"a\u{2028}b"
+str-raw-ps-double	accept	JSON5DoubleStringCharacter/U+2029	"a\u{2029}b"
+str-raw-ls-single	accept	JSON5SingleStringCharacter/U+2028	'a\u{2028}b'
+str-raw-ps-single	accept	JSON5SingleStringCharacter/U+2029	'a\u{2029}b'
+str-raw-ls-in-key	accept	JSON5DoubleStringCharacter/U+2028	{"a\u{2028}":1}
+str-raw-lf-in-key	reject	JSON5DoubleStringCharacter	{"a\n":1}
+str-raw-noncharacter	accept	JSON5DoubleStringCharacter	"\u{FFFF}"
+str-raw-private-use	accept	JSON5DoubleStringCharacter	"\u{E000}\u{10FFFD}"
+
+# ---------------------------------------------------------------------------
+# Strings: single-character escapes (ES5.1 7.8.4 SingleEscapeCharacter)
+# ---------------------------------------------------------------------------
+esc-backslash	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\\\'
+esc-b	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\b'
+esc-f	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\f'
+esc-n	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\n'
+esc-r	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\r'
+esc-t	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\t'
+esc-v	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\v'
+esc-all-single-in-double	accept	ES5.1-7.8.4-SingleEscapeCharacter	"\\'\\"\\\\\\b\\f\\n\\r\\t\\v"
+esc-trailing-backslash-unterminated	reject	JSON5String	'abc\\'
+esc-backslash-at-eof	reject	JSON5String	'abc\\
+esc-double-backslash-then-quote	accept	ES5.1-7.8.4-SingleEscapeCharacter	'abc\\\\'
+esc-three-backslashes-then-quote	reject	JSON5String	'abc\\\\\\'
+
+# ---------------------------------------------------------------------------
+# Strings: NonEscapeCharacter (any SourceCharacter but EscapeCharacter or LineTerminator)
+# ---------------------------------------------------------------------------
+esc-nonescape-a	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\a'
+esc-nonescape-spec-example	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\A\\C\\/\\D\\C'
+esc-nonescape-slash	accept	ES5.1-7.8.4-NonEscapeCharacter	"\\/"
+esc-nonescape-z	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\z'
+esc-nonescape-space	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\ '
+esc-nonescape-raw-tab	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\\t'
+esc-nonescape-raw-nul	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\\x00'
+esc-nonescape-unicode-letter	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\\u{E9}'
+esc-nonescape-cjk	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\\u{4E2D}'
+esc-nonescape-upper-x	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\X41'
+esc-nonescape-upper-u	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\U0041'
+esc-nonescape-upper-x-no-digits	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\X'
+esc-nonescape-upper-u-no-digits	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\U'
+esc-nonescape-upper-n	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\N'
+esc-nonescape-brace	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\{'
+esc-nonescape-vt-raw	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\\x0B'
+esc-nonescape-nel-raw	accept	ES5.1-7.8.4-NonEscapeCharacter	'\\\u{85}'
+
+# ---------------------------------------------------------------------------
+# Strings: \0 and decimal-digit escapes
+# ---------------------------------------------------------------------------
+esc-zero	accept	ES5.1-7.8.4-EscapeSequence-0	'\\0'
+esc-zero-then-letter	accept	ES5.1-7.8.4-EscapeSequence-0	'\\0a'
+esc-zero-then-x	accept	ES5.1-7.8.4-EscapeSequence-0	'\\0x'
+esc-zero-then-space-digit	accept	ES5.1-7.8.4-EscapeSequence-0	'\\0 1'
+esc-zero-then-escaped-digit	accept	ES5.1-7.8.4-EscapeSequence-0	'\\0\\x31'
+esc-zero-then-zero	reject	ES5.1-7.8.4-EscapeSequence-0	'\\00'
+esc-zero-then-one	reject	ES5.1-7.8.4-EscapeSequence-0	'\\01'
+esc-zero-then-eight	reject	ES5.1-7.8.4-EscapeSequence-0	'\\08'
+esc-zero-then-nine	reject	ES5.1-7.8.4-EscapeSequence-0	'\\09'
+esc-zero-then-arabic-indic-digit	accept	ES5.1-7.8.4-EscapeSequence-0	'\\0\u{660}'
+esc-digit-1	reject	ES5.1-7.8.4-EscapeCharacter	'\\1'
+esc-digit-2	reject	ES5.1-7.8.4-EscapeCharacter	'\\2'
+esc-digit-3	reject	ES5.1-7.8.4-EscapeCharacter	'\\3'
+esc-digit-4	reject	ES5.1-7.8.4-EscapeCharacter	'\\4'
+esc-digit-5	reject	ES5.1-7.8.4-EscapeCharacter	'\\5'
+esc-digit-6	reject	ES5.1-7.8.4-EscapeCharacter	'\\6'
+esc-digit-7	reject	ES5.1-7.8.4-EscapeCharacter	'\\7'
+esc-digit-8	reject	ES5.1-7.8.4-EscapeCharacter	'\\8'
+esc-digit-9	reject	ES5.1-7.8.4-EscapeCharacter	'\\9'
+esc-octal-style	reject	ES5.1-7.8.4-EscapeCharacter	'\\101'
+esc-escaped-backslash-then-digit	accept	ES5.1-7.8.4-SingleEscapeCharacter	'\\\\1'
+
+# ---------------------------------------------------------------------------
+# Strings: \x HexEscapeSequence
+# ---------------------------------------------------------------------------
+esc-hex-two-digits	accept	ES5.1-7.8.4-HexEscapeSequence	'\\x41'
+esc-hex-upper-digits	accept	ES5.1-7.8.4-HexEscapeSequence	'\\xFF'
+esc-hex-mixed-case	accept	ES5.1-7.8.4-HexEscapeSequence	'\\xaF'
+esc-hex-zero	accept	ES5.1-7.8.4-HexEscapeSequence	'\\x00'
+esc-hex-backslash-example	accept	ES5.1-7.8.4-HexEscapeSequence	'\\x5C'
+esc-hex-then-digit	accept	ES5.1-7.8.4-HexEscapeSequence	'\\x411'
+esc-hex-zero-digits	reject	ES5.1-7.8.4-HexEscapeSequence	'\\x'
+esc-hex-one-digit	reject	ES5.1-7.8.4-HexEscapeSequence	'\\x4'
+esc-hex-one-digit-then-letter	reject	ES5.1-7.8.4-HexEscapeSequence	'\\x4g'
+esc-hex-first-not-hex	reject	ES5.1-7.8.4-HexEscapeSequence	'\\xg0'
+esc-hex-one-digit-at-eof	reject	ES5.1-7.8.4-HexEscapeSequence	'\\x4
+esc-hex-braces	reject	ES5.1-7.8.4-HexEscapeSequence	'\\x{41}'
+
+# ---------------------------------------------------------------------------
+# Strings: \u UnicodeEscapeSequence, including surrogate code units
+# ---------------------------------------------------------------------------
+esc-u-four-digits	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u0041'
+esc-u-upper-hex	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uABCD'
+esc-u-mixed-case	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uAbCd'
+esc-u-backslash-example	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u005C'
+esc-u-ls	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u2028\\u2029'
+esc-u-then-digit	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u00411'
+esc-u-surrogate-pair	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uD83C\\uDFBC'
+esc-u-lone-high-surrogate	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uD800'
+esc-u-lone-low-surrogate	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uDC00'
+esc-u-reversed-surrogates	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uDC00\\uD800'
+esc-u-high-surrogate-then-text	accept	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uD83Cabc'
+esc-u-zero-digits	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u'
+esc-u-one-digit	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u4'
+esc-u-two-digits	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u41'
+esc-u-three-digits	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u041'
+esc-u-bad-fourth-digit	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u004G'
+esc-u-bad-first-digit	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\uG000'
+esc-u-sign	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u-123'
+esc-u-es6-braces	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u{41}'
+esc-u-es6-braces-long	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u{1F600}'
+esc-u-three-digits-at-eof	reject	ES5.1-7.8.4-UnicodeEscapeSequence	'\\u004
+
+# ---------------------------------------------------------------------------
+# Strings: LineContinuation (\ LineTerminatorSequence)
+# ---------------------------------------------------------------------------
+cont-lf-single	accept	ES5.1-7.8.4-LineContinuation	'a\\\nb'
+cont-lf-double	accept	ES5.1-7.8.4-LineContinuation	"a\\\nb"
+cont-cr	accept	ES5.1-7.8.4-LineContinuation	'a\\\rb'
+cont-crlf	accept	ES5.1-7.8.4-LineContinuation	'a\\\r\nb'
+cont-ls	accept	ES5.1-7.8.4-LineContinuation	'a\\\u{2028}b'
+cont-ps	accept	ES5.1-7.8.4-LineContinuation	'a\\\u{2029}b'
+cont-spec-example	accept	ES5.1-7.8.4-LineContinuation	'Lorem ipsum dolor sit amet, \\\nconsectetur adipiscing elit.'
+cont-at-start-and-end	accept	ES5.1-7.8.4-LineContinuation	'\\\nab\\\n'
+cont-twice	accept	ES5.1-7.8.4-LineContinuation	'a\\\n\\\nb'
+cont-in-key	accept	ES5.1-7.8.4-LineContinuation	{'a\\\nb':1}
+cont-cr-then-raw-cr	reject	JSON5SingleStringCharacter	'a\\\r\rb'
+cont-lf-then-raw-cr	reject	JSON5SingleStringCharacter	'a\\\n\rb'
+cont-lf-then-raw-lf	reject	JSON5SingleStringCharacter	'a\\\n\nb'
+cont-crlf-then-raw-lf	reject	JSON5SingleStringCharacter	'a\\\r\n\nb'
+cont-space-before-newline	reject	JSON5SingleStringCharacter	'a\\ \nb'
+cont-nel-is-not-terminator	accept	ES5.1-7.8.4-NonEscapeCharacter	'a\\\u{85}b'
+cont-at-eof	reject	JSON5String	'a\\\n
+
+# ---------------------------------------------------------------------------
+# Objects (JSON5Object, JSON5MemberList, JSON5Member)
+# ---------------------------------------------------------------------------
+obj-empty	accept	JSON5Object	{}
+obj-empty-with-space	accept	JSON5Object	{ }
+obj-one-member	accept	JSON5Member	{a:1}
+obj-two-members	accept	JSON5MemberList	{a:1,b:2}
+obj-trailing-comma	accept	JSON5Object	{a:1,}
+obj-trailing-comma-two-members	accept	JSON5Object	{a:1,b:2,}
+obj-trailing-comma-whitespace	accept	JSON5Object	{ a : 1 , }
+obj-double-trailing-comma	reject	JSON5Object	{a:1,,}
+obj-lone-comma	reject	JSON5Object	{,}
+obj-leading-comma	reject	JSON5Object	{,a:1}
+obj-double-comma-between	reject	JSON5MemberList	{a:1,,b:2}
+obj-missing-comma	reject	JSON5MemberList	{a:1 b:2}
+obj-missing-comma-strings	reject	JSON5MemberList	{"a":1 "b":2}
+obj-missing-colon	reject	JSON5Member	{a 1}
+obj-missing-value	reject	JSON5Member	{a:}
+obj-missing-value-before-comma	reject	JSON5Member	{a:,b:1}
+obj-missing-name	reject	JSON5Member	{:1}
+obj-name-only	reject	JSON5Member	{a}
+obj-name-only-trailing-comma	reject	JSON5Member	{a,}
+obj-double-colon	reject	JSON5Member	{a::1}
+obj-two-values	reject	JSON5Member	{a:1 2}
+obj-chained-colons	reject	JSON5Member	{a:1:2}
+obj-equals-instead-of-colon	reject	JSON5Member	{a=1}
+obj-semicolon-separator	reject	JSON5MemberList	{a:1;b:2}
+obj-unclosed	reject	JSON5Object	{a:1
+obj-unclosed-empty	reject	JSON5Object	{
+obj-unclosed-trailing-comma	reject	JSON5Object	{a:1,
+obj-lone-close	reject	JSON5Object	}
+obj-closed-with-bracket	reject	JSON5Object	{a:1]
+obj-extra-close	reject	JSON5Text	{a:1}}
+obj-duplicate-identifier-keys	accept	JSON5Object	{a:1,a:2}
+obj-duplicate-string-keys	accept	JSON5Object	{"a":1,"a":2}
+obj-duplicate-mixed-quoting	accept	JSON5Object	{a:1,'a':2,"a":3}
+obj-duplicate-via-escape	accept	JSON5Object	{a:1,\\u0061:2}
+obj-nested	accept	JSON5Object	{image:{width:1920,height:1080,'aspect-ratio':'16:9',}}
+obj-all-value-types	accept	JSON5Object	{a:null,b:true,c:false,d:1,e:'s',f:"s",g:{},h:[],i:Infinity,j:NaN,k:-0x1}
+obj-number-key	reject	JSON5MemberName	{1:1}
+obj-negative-number-key	reject	JSON5MemberName	{-1:1}
+obj-object-key	reject	JSON5MemberName	{{}:1}
+obj-array-key	reject	JSON5MemberName	{[]:1}
+obj-computed-key	reject	JSON5MemberName	{[a]:1}
+obj-identifier-value	reject	JSON5Value	{a:b}
+obj-shorthand-property	reject	JSON5Member	{a,b}
+obj-spec-example	accept	JSON5Text	{\n  // comments\n  unquoted: 'and you can quote me on that',\n  singleQuotes: 'I can use "double quotes" here',\n  lineBreaks: "Look, Mom! \\\nNo \\\\n's!",\n  hexadecimal: 0xdecaf,\n  leadingDecimalPoint: .8675309, andTrailing: 8675309.,\n  positiveSign: +1,\n  trailingComma: 'in objects', andIn: ['arrays',],\n  "backwardsCompatible": "with JSON",\n}\n
+
+# ---------------------------------------------------------------------------
+# Quoted member names (JSON5MemberName: JSON5String)
+# ---------------------------------------------------------------------------
+key-double-quoted	accept	JSON5MemberName	{"a":1}
+key-single-quoted	accept	JSON5MemberName	{'a':1}
+key-empty-string	accept	JSON5MemberName	{"":1}
+key-quoted-with-space	accept	JSON5MemberName	{"a b":1}
+key-quoted-with-hyphen	accept	JSON5MemberName	{'a-b':1}
+key-quoted-digit-start	accept	JSON5MemberName	{'1a':1}
+key-quoted-with-escapes	accept	JSON5MemberName	{"\\n\\x41\\u0042":1}
+key-quoted-bad-escape	reject	ES5.1-7.8.4-HexEscapeSequence	{"\\x4":1}
+key-quoted-unterminated	reject	JSON5String	{"a:1}
+
+# ---------------------------------------------------------------------------
+# Identifier member names (JSON5Identifier ::= IdentifierName, ES5.1 7.6)
+# ---------------------------------------------------------------------------
+id-ascii-lower	accept	JSON5Identifier/ES5.1-7.6	{abc:1}
+id-ascii-upper	accept	JSON5Identifier/ES5.1-7.6	{ABC:1}
+id-dollar	accept	JSON5Identifier/ES5.1-7.6	{$:1}
+id-underscore	accept	JSON5Identifier/ES5.1-7.6	{_:1}
+id-dollar-underscore-mix	accept	JSON5Identifier/ES5.1-7.6	{$_$a_:1}
+id-digit-after-first	accept	JSON5Identifier/ES5.1-7.6	{a1:1}
+id-underscore-then-digit	accept	JSON5Identifier/ES5.1-7.6	{_1:1}
+id-dollar-then-digit	accept	JSON5Identifier/ES5.1-7.6	{$0:1}
+id-digit-first	reject	JSON5Identifier/ES5.1-7.6	{1a:1}
+id-hyphen	reject	JSON5Identifier/ES5.1-7.6	{a-b:1}
+id-dot	reject	JSON5Identifier/ES5.1-7.6	{a.b:1}
+id-space-inside	reject	JSON5Identifier/ES5.1-7.6	{a b:1}
+id-at-sign	reject	JSON5Identifier/ES5.1-7.6	{@a:1}
+id-hash	reject	JSON5Identifier/ES5.1-7.6	{#a:1}
+id-comment-inside	reject	JSON5Identifier/ES5.1-7.6	{a/**/b:1}
+id-camel-case-spec	accept	JSON5Identifier/ES5.1-7.6	{leadingDecimalPoint:.8675309}
+# Reserved words and the JSON5 literal names are IdentifierNames, so allowed as keys.
+id-reserved-null	accept	JSON5Identifier/ES5.1-7.6.1	{null:1}
+id-reserved-true	accept	JSON5Identifier/ES5.1-7.6.1	{true:1}
+id-reserved-false	accept	JSON5Identifier/ES5.1-7.6.1	{false:1}
+id-reserved-if	accept	JSON5Identifier/ES5.1-7.6.1	{if:1}
+id-reserved-var-class	accept	JSON5Identifier/ES5.1-7.6.1	{var:1,class:2,function:3}
+id-infinity-key	accept	JSON5Identifier/ES5.1-7.6	{Infinity:1}
+id-nan-key	accept	JSON5Identifier/ES5.1-7.6	{NaN:1}
+id-negative-infinity-key	reject	JSON5MemberName	{-Infinity:1}
+id-undefined-key	accept	JSON5Identifier/ES5.1-7.6	{undefined:1}
+id-null-escaped-key	accept	JSON5Identifier/ES5.1-7.6	{n\\u0075ll:1}
+# UnicodeLetter categories at the start
+id-start-lu	accept	ES5.1-7.6-UnicodeLetter-Lu	{\u{C9}:1}
+id-start-ll	accept	ES5.1-7.6-UnicodeLetter-Ll	{\u{E9}:1}
+id-start-lt	accept	ES5.1-7.6-UnicodeLetter-Lt	{\u{1C5}:1}
+id-start-lm	accept	ES5.1-7.6-UnicodeLetter-Lm	{\u{2B0}:1}
+id-start-lo-hebrew	accept	ES5.1-7.6-UnicodeLetter-Lo	{\u{5D0}:1}
+id-start-lo-cjk	accept	ES5.1-7.6-UnicodeLetter-Lo	{\u{4E2D}\u{6587}:1}
+id-start-nl-roman	accept	ES5.1-7.6-UnicodeLetter-Nl	{\u{2160}:1}
+id-start-nl-ideographic-zero	accept	ES5.1-7.6-UnicodeLetter-Nl	{\u{3007}:1}
+id-letters-after-start	accept	ES5.1-7.6-UnicodeLetter	{a\u{C9}\u{E9}\u{1C5}\u{2B0}\u{5D0}\u{2160}:1}
+# IdentifierPart-only classes: allowed after the first character, rejected at the start
+id-part-mn	accept	ES5.1-7.6-UnicodeCombiningMark-Mn	{e\u{301}:1}
+id-part-mc	accept	ES5.1-7.6-UnicodeCombiningMark-Mc	{\u{915}\u{903}:1}
+id-part-nd-ascii	accept	ES5.1-7.6-UnicodeDigit-Nd	{x9:1}
+id-part-nd-arabic-indic	accept	ES5.1-7.6-UnicodeDigit-Nd	{x\u{660}:1}
+id-part-nd-devanagari	accept	ES5.1-7.6-UnicodeDigit-Nd	{x\u{966}:1}
+id-part-pc-undertie	accept	ES5.1-7.6-UnicodeConnectorPunctuation-Pc	{x\u{203F}:1}
+id-part-pc-fullwidth-low-line	accept	ES5.1-7.6-UnicodeConnectorPunctuation-Pc	{x\u{FF3F}:1}
+id-part-zwnj	accept	ES5.1-7.6-ZWNJ	{x\u{200C}y:1}
+id-part-zwj	accept	ES5.1-7.6-ZWJ	{x\u{200D}:1}
+id-start-mn	reject	ES5.1-7.6-IdentifierStart	{\u{301}e:1}
+id-start-mc	reject	ES5.1-7.6-IdentifierStart	{\u{903}:1}
+id-start-nd-arabic-indic	reject	ES5.1-7.6-IdentifierStart	{\u{660}:1}
+id-start-pc-undertie	reject	ES5.1-7.6-IdentifierStart	{\u{203F}:1}
+id-start-zwnj	reject	ES5.1-7.6-IdentifierStart	{\u{200C}x:1}
+id-start-zwj	reject	ES5.1-7.6-IdentifierStart	{\u{200D}x:1}
+# Characters in no allowed class, at start and after start
+id-me-enclosing-mark-after	reject	ES5.1-7.6-IdentifierPart	{a\u{20DD}:1}
+id-no-superscript-two-after	reject	ES5.1-7.6-IdentifierPart	{a\u{B2}:1}
+id-no-superscript-two-start	reject	ES5.1-7.6-IdentifierStart	{\u{B2}:1}
+id-sm-multiplication-sign	reject	ES5.1-7.6-IdentifierPart	{a\u{D7}b:1}
+id-sc-euro-sign	reject	ES5.1-7.6-IdentifierStart	{\u{20AC}:1}
+id-po-middle-dot	reject	ES5.1-7.6-IdentifierPart	{a\u{B7}b:1}
+id-sm-weierstrass-p	reject	ES5.1-7.6-IdentifierStart	{\u{2118}:1}
+id-cf-zwsp	reject	ES5.1-7.6-IdentifierPart	{a\u{200B}b:1}
+id-nbsp-inside	reject	ES5.1-7.6-IdentifierPart	{a\u{A0}b:1}
+# \u escapes inside identifiers must denote a character legal at that position
+id-escape-letter-start	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u0061:1}
+id-escape-letter-after	accept	ES5.1-7.6-UnicodeEscapeSequence	{a\\u0062:1}
+id-escape-uppercase-hex	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u004A:1}
+id-escape-dollar	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u0024:1}
+id-escape-underscore	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u005f:1}
+id-escape-non-ascii-letter	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u00E9:1}
+id-escape-cjk	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u4E2D:1}
+id-escape-digit-after	accept	ES5.1-7.6-UnicodeEscapeSequence	{a\\u0030:1}
+id-escape-mn-after	accept	ES5.1-7.6-UnicodeEscapeSequence	{a\\u0301:1}
+id-escape-zwnj-after	accept	ES5.1-7.6-UnicodeEscapeSequence	{a\\u200C:1}
+id-escape-pc-after	accept	ES5.1-7.6-UnicodeEscapeSequence	{a\\u203F:1}
+id-escape-all-escaped	accept	ES5.1-7.6-UnicodeEscapeSequence	{\\u0061\\u0062\\u0063:1}
+id-escape-digit-start	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u0030:1}
+id-escape-mn-start	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u0301a:1}
+id-escape-zwnj-start	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u200Ca:1}
+id-escape-pc-start	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u203Fa:1}
+id-escape-space	reject	ES5.1-7.6-UnicodeEscapeSequence	{a\\u0020:1}
+id-escape-hyphen	reject	ES5.1-7.6-UnicodeEscapeSequence	{a\\u002D:1}
+id-escape-colon	reject	ES5.1-7.6-UnicodeEscapeSequence	{a\\u003A1}
+id-escape-backslash	reject	ES5.1-7.6-UnicodeEscapeSequence	{a\\u005C:1}
+id-escape-quote	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u0022:1}
+id-escape-high-surrogate	reject	ES5.1-7.6-UnicodeEscapeSequence	{a\\uD800:1}
+id-escape-me-after	reject	ES5.1-7.6-UnicodeEscapeSequence	{a\\u20DD:1}
+id-escape-short	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u61:1}
+id-escape-es6-braces	reject	ES5.1-7.6-UnicodeEscapeSequence	{\\u{61}:1}
+id-escape-hex-x	reject	ES5.1-7.6-IdentifierStart	{\\x61:1}
+id-escape-upper-u	reject	ES5.1-7.6-IdentifierStart	{\\U0061:1}
+id-escape-bare-backslash	reject	ES5.1-7.6-IdentifierPart	{a\\:1}
+id-escape-single-char-escape	reject	ES5.1-7.6-IdentifierPart	{a\\n:1}
+
+# ---------------------------------------------------------------------------
+# Arrays (JSON5Array, JSON5ElementList)
+# ---------------------------------------------------------------------------
+arr-empty	accept	JSON5Array	[]
+arr-empty-with-space	accept	JSON5Array	[ ]
+arr-one	accept	JSON5ElementList	[1]
+arr-three-mixed	accept	JSON5ElementList	[1,true,'three']
+arr-trailing-comma	accept	JSON5Array	[1,]
+arr-trailing-comma-three	accept	JSON5Array	[1,true,'three',]
+arr-trailing-comma-newline	accept	JSON5Array	[\n  1,\n  2,\n]
+arr-nested	accept	JSON5Array	[[1,true,'three'],[4,"five",0x6],]
+arr-objects	accept	JSON5Array	[{name:'Joe',age:27},{name:'Jane',age:32},]
+arr-double-trailing-comma	reject	JSON5Array	[1,,]
+arr-lone-comma	reject	JSON5Array	[,]
+arr-leading-comma	reject	JSON5Array	[,1]
+arr-hole	reject	JSON5ElementList	[1,,2]
+arr-missing-comma	reject	JSON5ElementList	[1 2]
+arr-missing-comma-strings	reject	JSON5ElementList	['a' 'b']
+arr-missing-comma-nested	reject	JSON5ElementList	[[] []]
+arr-semicolon	reject	JSON5ElementList	[1;2]
+arr-colon	reject	JSON5ElementList	[1:2]
+arr-member-inside	reject	JSON5ElementList	[a:1]
+arr-identifier-element	reject	JSON5Value	[a]
+arr-unclosed	reject	JSON5Array	[1
+arr-unclosed-empty	reject	JSON5Array	[
+arr-unclosed-trailing-comma	reject	JSON5Array	[1,
+arr-lone-close	reject	JSON5Array	]
+arr-closed-with-brace	reject	JSON5Array	[1}
+arr-mismatched-nesting	reject	JSON5Array	[{]}
+arr-extra-close	reject	JSON5Text	[1]]
+
+# ---------------------------------------------------------------------------
+# Comments (ES5.1 7.4) in every position
+# ---------------------------------------------------------------------------
+cmt-line-before-value	accept	ES5.1-7.4-SingleLineComment	// c\n1
+cmt-block-before-value	accept	ES5.1-7.4-MultiLineComment	/* c */1
+cmt-line-after-value-eof	accept	ES5.1-7.4-SingleLineComment	1 // c
+cmt-line-after-value-newline	accept	ES5.1-7.4-SingleLineComment	1 // c\n
+cmt-block-after-value	accept	ES5.1-7.4-MultiLineComment	1 /* c */
+cmt-empty-line-comment-eof	accept	ES5.1-7.4-SingleLineComment	1//
+cmt-empty-block	accept	ES5.1-7.4-MultiLineComment	/**/1
+cmt-block-three-stars	accept	ES5.1-7.4-MultiLineComment	/***/1
+cmt-block-many-stars	accept	ES5.1-7.4-MultiLineComment	/*****/1
+cmt-block-star-inside	accept	ES5.1-7.4-MultiLineComment	/* a * b */1
+cmt-block-slash-inside	accept	ES5.1-7.4-MultiLineComment	/* a / b */1
+cmt-block-multiline	accept	ES5.1-7.4-MultiLineComment	/* This is a multi-\n   line comment. */1
+cmt-block-with-cr-ls-ps	accept	ES5.1-7.4-MultiLineComment	/*\r\u{2028}\u{2029}*/1
+cmt-block-contains-line-comment	accept	ES5.1-7.4-MultiLineComment	/*//*/1
+cmt-line-contains-block-open	accept	ES5.1-7.4-SingleLineComment	//*\n1
+cmt-line-contains-block-close	accept	ES5.1-7.4-SingleLineComment	// */\n1
+cmt-block-nested-open-is-text	accept	ES5.1-7.4-MultiLineComment	/* /* */1
+cmt-block-nested-close-extra	reject	ES5.1-7.4-MultiLineComment	/* /* */ */1
+cmt-block-unterminated	reject	ES5.1-7.4-MultiLineComment	1/*
+cmt-block-unterminated-text	reject	ES5.1-7.4-MultiLineComment	1 /* never closed
+cmt-block-slash-star-slash	reject	ES5.1-7.4-MultiLineComment	1/*/
+cmt-block-spaced-close	reject	ES5.1-7.4-MultiLineComment	/* * /1
+cmt-block-hides-value	reject	JSON5Text	/* 1 */
+cmt-stray-close	reject	ES5.1-7.4	*/1
+cmt-lone-slash	reject	ES5.1-7.4	/ 1
+cmt-slash-after-value	reject	ES5.1-7.4	1/
+cmt-hash-comment	reject	ES5.1-7.4	# c\n1
+cmt-html-comment	reject	ES5.1-7.4	<!-- c -->1
+cmt-line-swallows-value	reject	ES5.1-7.4-SingleLineComment	// c 1
+cmt-line-ends-at-lf	accept	ES5.1-7.4-SingleLineComment	// c\n1
+cmt-line-ends-at-cr	accept	ES5.1-7.4-SingleLineComment	// c\r1
+cmt-line-ends-at-crlf	accept	ES5.1-7.4-SingleLineComment	// c\r\n1
+cmt-line-ends-at-ls	accept	ES5.1-7.4-SingleLineComment	// c\u{2028}1
+cmt-line-ends-at-ps	accept	ES5.1-7.4-SingleLineComment	// c\u{2029}1
+cmt-line-not-ended-by-nel	reject	ES5.1-7.4-SingleLineComment	// c\u{85}1
+cmt-line-not-ended-by-vt	reject	ES5.1-7.4-SingleLineComment	// c\x0B1
+cmt-line-not-ended-by-ff	reject	ES5.1-7.4-SingleLineComment	// c\x0C1
+cmt-line-not-ended-by-tab	reject	ES5.1-7.4-SingleLineComment	// c\t1
+cmt-line-with-control-chars	accept	ES5.1-7.4-SingleLineComment	// \x00\x01\x7F\n1
+cmt-block-with-control-chars	accept	ES5.1-7.4-MultiLineComment	/*\x00\x1F*/1
+cmt-unicode-content	accept	ES5.1-7.4	// \u{E9}\u{1F600}\n/* \u{4E2D} */1
+cmt-in-empty-object	accept	ES5.1-7.4	{/* c */}
+cmt-line-in-empty-object	accept	ES5.1-7.4	{// c\n}
+cmt-in-empty-array	accept	ES5.1-7.4	[/* c */]
+cmt-line-in-empty-array	accept	ES5.1-7.4	[// c\n]
+cmt-before-key	accept	ES5.1-7.4	{/* c */a:1}
+cmt-between-key-and-colon	accept	ES5.1-7.4	{a/* c */:1}
+cmt-line-between-key-and-colon	accept	ES5.1-7.4	{a// c\n:1}
+cmt-between-string-key-and-colon	accept	ES5.1-7.4	{"a"/* c */:1}
+cmt-between-colon-and-value	accept	ES5.1-7.4	{a:/* c */1}
+cmt-between-value-and-comma	accept	ES5.1-7.4	{a:1/* c */,b:2}
+cmt-after-comma	accept	ES5.1-7.4	{a:1,// c\nb:2}
+cmt-after-trailing-comma-object	accept	ES5.1-7.4	{a:1,/* c */}
+cmt-after-trailing-comma-array	accept	ES5.1-7.4	[1,// c\n]
+cmt-between-array-elements	accept	ES5.1-7.4	[1/* c */,/* d */2]
+cmt-only-in-array-slot	reject	JSON5ElementList	[1,/* c */,2]
+cmt-adjacent-comments	accept	ES5.1-7.4	/*a*//*b*/// c\n1
+cmt-inside-number	reject	JSON5Number	1/**/2
+cmt-inside-hex	reject	ES5.1-7.8.3-HexIntegerLiteral	0x/**/1
+cmt-inside-literal	reject	JSON5Null	nu/**/ll
+cmt-unterminated-in-object	reject	ES5.1-7.4-MultiLineComment	{a:1 /* }
+
+# ---------------------------------------------------------------------------
+# White space (ES5.1 7.2 + JSON5 Table 3) between tokens
+# ---------------------------------------------------------------------------
+ws-tab	accept	ES5.1-7.2-WhiteSpace	[1,\t2]
+ws-vt	accept	ES5.1-7.2-WhiteSpace	[1,\x0B2]
+ws-ff	accept	ES5.1-7.2-WhiteSpace	[1,\x0C2]
+ws-space	accept	ES5.1-7.2-WhiteSpace	[1, 2]
+ws-nbsp	accept	ES5.1-7.2-WhiteSpace	[1,\u{A0}2]
+ws-bom-between	accept	ES5.1-7.2-WhiteSpace	[1,\u{FEFF}2]
+ws-bom-leading	accept	ES5.1-7.2-WhiteSpace	\u{FEFF}{}
+ws-bom-trailing	accept	ES5.1-7.2-WhiteSpace	{}\u{FEFF}
+ws-zs-1680-ogham	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{1680}2]
+ws-zs-2000	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2000}2]
+ws-zs-2001	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2001}2]
+ws-zs-2002	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2002}2]
+ws-zs-2003	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2003}2]
+ws-zs-2004	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2004}2]
+ws-zs-2005	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2005}2]
+ws-zs-2006	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2006}2]
+ws-zs-2007	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2007}2]
+ws-zs-2008	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2008}2]
+ws-zs-2009	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{2009}2]
+ws-zs-200a	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{200A}2]
+ws-zs-202f	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{202F}2]
+ws-zs-205f	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{205F}2]
+ws-zs-3000	accept	ES5.1-7.2-WhiteSpace-Zs	[1,\u{3000}2]
+ws-all-kinds-around-value	accept	ES5.1-7.2-WhiteSpace	\t\x0B\x0C \u{A0}\u{FEFF}\u{1680}\u{2000}\u{3000}null\u{202F}\u{205F}\u{200A}
+ws-zs-around-object-tokens	accept	ES5.1-7.2-WhiteSpace	{\u{3000}a\u{A0}:\u{2003}1\u{FEFF},\u{1680}}
+ws-not-zwsp-200b	reject	ES5.1-7.2-WhiteSpace	[1,\u{200B}2]
+ws-not-mongolian-vowel-separator-180e	reject	ES5.1-7.2-WhiteSpace	[1,\u{180E}2]
+ws-not-nel-0085	reject	ES5.1-7.2-WhiteSpace	[1,\u{85}2]
+ws-not-word-joiner-2060	reject	ES5.1-7.2-WhiteSpace	[1,\u{2060}2]
+ws-not-nul	reject	ES5.1-7.2-WhiteSpace	[1,\x002]
+ws-not-nul-trailing	reject	ES5.1-7.2-WhiteSpace	1\x00
+ws-not-control-01	reject	ES5.1-7.2-WhiteSpace	\x011
+ws-not-file-separator-1c	reject	ES5.1-7.2-WhiteSpace	\x1C1
+ws-not-unit-separator-1f	reject	ES5.1-7.2-WhiteSpace	1\x1F
+ws-not-del	reject	ES5.1-7.2-WhiteSpace	1\x7F
+ws-not-escaped-space	reject	ES5.1-7.2-WhiteSpace	[1,\\u00202]
+ws-nbsp-inside-number	reject	JSON5Number	1\u{A0}2
+ws-bom-inside-literal	reject	JSON5Boolean	tr\u{FEFF}ue
+
+# ---------------------------------------------------------------------------
+# Line terminators (ES5.1 7.3) between tokens
+# ---------------------------------------------------------------------------
+lt-lf	accept	ES5.1-7.3-LineTerminator	[1,\n2]
+lt-cr	accept	ES5.1-7.3-LineTerminator	[1,\r2]
+lt-crlf	accept	ES5.1-7.3-LineTerminator	[1,\r\n2]
+lt-lfcr	accept	ES5.1-7.3-LineTerminator	[1,\n\r2]
+lt-ls	accept	ES5.1-7.3-LineTerminator	[1,\u{2028}2]
+lt-ps	accept	ES5.1-7.3-LineTerminator	[1,\u{2029}2]
+lt-ls-leading-trailing	accept	ES5.1-7.3-LineTerminator	\u{2028}1\u{2029}
+lt-many	accept	ES5.1-7.3-LineTerminator	\n\n\r\r\n{\na\n:\n1\n,\n}\n
+lt-between-key-colon	accept	ES5.1-7.3-LineTerminator	{a\r\n:\u{2028}1}
+lt-inside-identifier	reject	JSON5Identifier/ES5.1-7.6	{a\nb:1}
+lt-inside-literal	reject	JSON5Null	nu\nll
+
+# ---------------------------------------------------------------------------
+# UTF-8 validity (RFC 3629): malformed bytes anywhere reject the document
+# ---------------------------------------------------------------------------
+utf8-valid-boundaries-in-string	accept	UTF-8	'\u{7F}\u{80}\u{7FF}\u{800}\u{D7FF}\u{E000}\u{FFFD}\u{FFFF}\u{10000}\u{10FFFF}'
+utf8-valid-in-comment	accept	UTF-8	/* \u{80}\u{7FF}\u{800}\u{FFFF}\u{10000}\u{10FFFF} */1
+utf8-valid-four-byte-in-key	accept	UTF-8	{'\u{1F600}':1}
+utf8-valid-bom-bytes	accept	UTF-8	\xEF\xBB\xBF[]
+utf8-stray-continuation-in-string	reject	UTF-8	'a\x80b'
+utf8-stray-continuation-bf-in-string	reject	UTF-8	"\xBF"
+utf8-stray-continuation-outside	reject	UTF-8	\x80
+utf8-stray-continuation-after-value	reject	UTF-8	1\x80
+utf8-stray-continuation-in-line-comment	reject	UTF-8	// \x80\n1
+utf8-stray-continuation-in-block-comment	reject	UTF-8	/* \x80 */1
+utf8-stray-continuation-in-whitespace	reject	UTF-8	[1,\x802]
+utf8-extra-continuation-after-two-byte	reject	UTF-8	'\xC3\xA9\xA9'
+utf8-overlong-2byte-nul	reject	UTF-8	'\xC0\x80'
+utf8-overlong-2byte-slash	reject	UTF-8	'\xC0\xAF'
+utf8-overlong-2byte-max	reject	UTF-8	'\xC1\xBF'
+utf8-overlong-2byte-quote-outside	reject	UTF-8	\xC0\xA71\xC0\xA7
+utf8-overlong-2byte-in-comment	reject	UTF-8	// \xC0\x80\n1
+utf8-overlong-3byte-nul	reject	UTF-8	'\xE0\x80\x80'
+utf8-overlong-3byte-max	reject	UTF-8	'\xE0\x9F\xBF'
+utf8-overlong-3byte-in-comment	reject	UTF-8	/* \xE0\x80\xAF */1
+utf8-overlong-4byte-nul	reject	UTF-8	'\xF0\x80\x80\x80'
+utf8-overlong-4byte-max	reject	UTF-8	'\xF0\x8F\xBF\xBF'
+utf8-overlong-4byte-outside	reject	UTF-8	1\xF0\x80\x80\xAF
+utf8-surrogate-d800	reject	UTF-8	'\xED\xA0\x80'
+utf8-surrogate-dbff	reject	UTF-8	'\xED\xAF\xBF'
+utf8-surrogate-dc00	reject	UTF-8	'\xED\xB0\x80'
+utf8-surrogate-dfff	reject	UTF-8	'\xED\xBF\xBF'
+utf8-surrogate-pair-cesu	reject	UTF-8	'\xED\xA0\xBD\xED\xB8\x80'
+utf8-surrogate-in-comment	reject	UTF-8	// \xED\xA0\x80\n1
+utf8-surrogate-in-key	reject	UTF-8	{a\xED\xA0\x80:1}
+utf8-above-max-f4-90	reject	UTF-8	'\xF4\x90\x80\x80'
+utf8-above-max-f5	reject	UTF-8	'\xF5\x80\x80\x80'
+utf8-above-max-f7	reject	UTF-8	'\xF7\xBF\xBF\xBF'
+utf8-above-max-in-comment	reject	UTF-8	/* \xF4\x90\x80\x80 */1
+utf8-invalid-lead-f8-five-byte	reject	UTF-8	'\xF8\x88\x80\x80\x80'
+utf8-invalid-lead-fc-six-byte	reject	UTF-8	'\xFC\x84\x80\x80\x80\x80'
+utf8-invalid-byte-fe	reject	UTF-8	'\xFE'
+utf8-invalid-byte-ff	reject	UTF-8	'\xFF'
+utf8-invalid-byte-ff-outside	reject	UTF-8	\xFF[]
+utf8-invalid-byte-fe-ff-bom	reject	UTF-8	\xFE\xFF[]
+utf8-truncated-2byte-mid-string	reject	UTF-8	'\xC3'
+utf8-truncated-2byte-before-ascii	reject	UTF-8	'\xC3A'
+utf8-truncated-3byte-mid-string	reject	UTF-8	'\xE2\x82'
+utf8-truncated-3byte-one-byte	reject	UTF-8	'a\xE2b'
+utf8-truncated-4byte-mid-string	reject	UTF-8	'\xF0\x9F\x98'
+utf8-truncated-4byte-mid-document	reject	UTF-8	[\xF0\x9F\x98,1]
+utf8-truncated-2byte-at-eof	reject	UTF-8	1//\xC3
+utf8-truncated-3byte-at-eof	reject	UTF-8	1 //\xE2\x82
+utf8-truncated-4byte-at-eof	reject	UTF-8	1 // \xF0\x9F\x98
+utf8-truncated-lead-at-eof-after-value	reject	UTF-8	null\xE2
+utf8-truncated-in-block-comment	reject	UTF-8	/* \xE2\x82 */1
+utf8-continuation-after-ascii-in-key	reject	UTF-8	{'a\x80':1}
+utf8-valid-e0-a0-boundary	accept	UTF-8	'\xE0\xA0\x80'
+utf8-valid-ed-9f-boundary	accept	UTF-8	'\xED\x9F\xBF'
+utf8-valid-f0-90-boundary	accept	UTF-8	'\xF0\x90\x80\x80'
+utf8-valid-f4-8f-boundary	accept	UTF-8	'\xF4\x8F\xBF\xBF'
+utf8-valid-c2-80-boundary	accept	UTF-8	'\xC2\x80'
+
+# ---------------------------------------------------------------------------
+# Nesting
+# ---------------------------------------------------------------------------
+nest-mixed	accept	JSON5Value	{a:[{b:[{c:[]}]}]}
+nest-unbalanced-deep	reject	JSON5Array	[[[[[[[[[[]]]]]]]]]
+nest-overclosed-deep	reject	JSON5Text	[[[[[]]]]]]
+num-nbsp-after-minus	reject	JSON5Number	-\u{A0}1
+nest-unicode-mixed-everything	accept	JSON5Text	\u{FEFF}// header\n{\u{E9}t\u{E9}:[+.5e-1,-0XaB,'\u{2028}\\\u{2029}',/**/],\\u0041b:{},}\r\n
+# UNSURE: Supplementary-plane identifier characters such as {\u{10000}:1} (U+10000 is Lo) or {a\u{1D400}:1} (U+1D400 is Lu). ES5.1 clause 6 defines SourceCharacter as a 16-bit code unit and 7.6 classifies "characters" (code units); a supplementary letter is two surrogate code units of category Cs, so strict ES5.1 rejects. JSON5 1.0 calls its terminal symbols "Unicode code units" but its introduction speaks of Unicode characters; ES2015 and later accept by code point.
+# UNSURE: An escaped surrogate pair in an identifier, {\\uD835\\uDC00:1} (denotes U+1D400 Lu). Under ES5.1 each escape contributes one Cs code unit, which is not a UnicodeLetter, so reject; a code-point reading would accept.
+# UNSURE: Range limits. 1e400 and 12345678901234567890 are grammatical (cases num-huge-exponent and num-int-long say accept), but JSON5 section 10 lets an implementation "set limits on ... the range and precision of numbers", so a conforming validator could reject them. The verdicts here are grammar verdicts.
+# UNSURE: Nesting limits. The depth-100 cases below are grammatical; JSON5 section 10 also permits a maximum nesting depth. 100 was chosen as a depth a reasonable implementation should support.
+nest-array-depth-100	accept	JSON5Array	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]
+nest-object-depth-100	accept	JSON5Object	{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:{a:null}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}
+nest-alternating-depth-100	accept	JSON5Value	[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:[{a:1}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]}]
+nest-array-depth-100-unclosed	reject	JSON5Array	[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[[]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]]

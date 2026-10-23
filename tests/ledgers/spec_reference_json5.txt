@@ -1,0 +1,3 @@
+# Spec-derived cases where the reference JavaScript json5 library (npm 2.2.3)
+# disagrees with the specification. The set must match exactly.
+mined-key-unicode-11-letter	expected=accept	got=reject	(json5 2.2.3 ships Unicode 10 identifier tables; U+1C90 was added in Unicode 11)

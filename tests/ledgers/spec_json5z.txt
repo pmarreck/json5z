@@ -1,0 +1,2 @@
+# Spec-derived cases (tests/spec_cases/json5_1.0.cases ids) where json5z
+# disagrees with the specification. Must stay empty.

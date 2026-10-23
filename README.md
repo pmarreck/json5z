@@ -45,22 +45,25 @@ The [JSON5 1.0 specification](https://spec.json5.org/) is the source of
 truth. No single test corpus covers it, so several independent checks are
 combined:
 
-1. The official JSON5 conformance suite
+1. A spec-derived corpus (`tests/spec_cases/`): 687 cases written from the
+   JSON5 1.0 and ECMAScript 5.1 grammars alone, each citing the production
+   that decides it, by an author who did not read json5z's source, plus 84
+   cases mined from other JSON5 parsers' bug reports. json5z disagrees with
+   none; upstream cj5 with 304; the reference JavaScript library with 1.
+2. The official JSON5 conformance suite
    ([json5/json5-tests](https://github.com/json5/json5-tests)). It has only
    114 cases and leaves many grammar rules with one example or none, so
    passing it is a minimum, not proof of spec accuracy.
-2. Differential fuzzing against the reference JavaScript implementation
+3. Differential fuzzing against the reference JavaScript implementation
    (npm `json5`), including inputs split into random chunks.
-3. Unmodified upstream cj5 ([septag/cj5](https://github.com/septag/cj5) at
+4. Unmodified upstream cj5 ([septag/cj5](https://github.com/septag/cj5) at
    `5fe4821`) as a degraded oracle: an independent JSON5 parser that json5z
    is expected to beat on both accuracy and speed. Every disagreement between
    json5z and upstream cj5 must be a recorded cj5 defect. Only septag's
    code qualifies; our modified copy is not independent of us.
-4. Mutation testing (`./mutate`) shows the tests catch deliberate bugs and
+5. Mutation testing (`./mutate`) shows the tests catch deliberate bugs and
    that no run can hang.
 
-Planned: a corpus derived from the specification's grammar productions,
-including inputs that other JSON5 parsers get wrong or never test.
 
 Run everything with `./test`.
 

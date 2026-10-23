@@ -1,0 +1,171 @@
+# Cases mined from other JSON5 parsers' bug reports and test gaps (2026-10-23).
+# Same format as json5_1.0.cases. Verdicts come from the cited grammar rule;
+# the source line names a parser that got the input wrong or a report about it.
+# turso #10415 kept trailing whitespace in the key (github.com/tursodatabase/turso/issues/10415)
+mined-key-ends-at-nbsp	accept	ES5.1-7.6 IdentifierName ends at WhiteSpace	{a\u{A0}:1}
+# turso #10415
+mined-key-ends-at-ls	accept	ES5.1-7.6 IdentifierName ends at LineTerminator	{a\u{2028}:1}
+# turso #10415
+mined-key-ends-at-bom	accept	ES5.1-7.6 IdentifierName ends at WhiteSpace (U+FEFF)	{a\u{FEFF}:1}
+# json-five #61 swallowed the next value (github.com/spyoungtech/json-five/issues/61)
+mined-line-comment-ends-at-ls	accept	SingleLineComment ends at LineTerminator	[1,// c\u{2028}2]
+# json-five #61; turso #10343
+mined-line-comment-ends-at-ps	accept	SingleLineComment ends at LineTerminator	[1,// c\u{2029}2]
+# json-five #61; turso #10343
+mined-line-comment-ends-at-cr	accept	SingleLineComment ends at LineTerminator	[1,// c\r2]
+# json5-rs 1.3.1 accepted (github.com/callum-oakley/json5-rs/issues/59)
+mined-unclosed-block-after-value	reject	MultiLineComment requires */	{} /* never closed
+# json5-tests #4 (github.com/json5/json5-tests/issues/4)
+mined-block-comment-slash-star-slash	reject	MultiLineComment: /*/ does not close	/*/1
+# json5-tests #4
+mined-block-comment-star-slash-body	accept	MultiLineComment	1 /*/ x */
+# upstream cj5 rejects (run by the mining agent)
+mined-comment-after-trailing-comma	accept	JSON5ElementList trailing comma; comments between tokens	[1,]/**/
+# json5 #137 (github.com/json5/json5/issues/137)
+mined-sign-comment-number	reject	JSON5Number is lexical (::); no comment inside	-/**/1
+# zig-json5 rejects raw control characters (run)
+mined-raw-unit-separator-in-string	accept	JSON5DoubleStringCharacter: SourceCharacter except quote, backslash, LineTerminator	"\x1f"
+# upstream cj5 accepts (run)
+mined-continuation-then-raw-lf	reject	LineContinuation consumes one LineTerminatorSequence	"a\\\n\nb"
+# mining agent: edge with no suite coverage
+mined-continuation-then-raw-cr	reject	LineContinuation consumes one LineTerminatorSequence	"a\\\r\rb"
+# pyjson5 (Kijewski) #158 mishandles \0 lookahead (github.com/Kijewski/pyjson5/issues/158)
+mined-escape-zero-then-letter	accept	EscapeSequence :: 0 [lookahead not DecimalDigit]	"\\0a"
+# json5-rs 1.3.1 accepted \9 via an off-by-one range (json5-rs #59)
+mined-escape-eight	reject	EscapeCharacter includes DecimalDigit	"\\8"
+# json5-rs #59
+mined-escape-nine	reject	EscapeCharacter includes DecimalDigit	"\\9"
+# mining agent
+mined-hex-escape-bad-second-digit	reject	HexEscapeSequence :: x HexDigit HexDigit	"\\x0G"
+# pyjson5 (Kijewski) treats \U as an 8-digit escape (src/_decoder.pyx)
+mined-escape-upper-u-alone	accept	NonEscapeCharacter (U is not an EscapeCharacter)	"\\U"
+# json5-spec #42 proposes adding it (github.com/json5/json5-spec/issues/42)
+mined-escape-es6-braces	reject	UnicodeEscapeSequence :: u HexDigit{4}	"\\u{41}"
+# json5-spec #12 (github.com/json5/json5-spec/issues/12)
+mined-escape-reversed-surrogates	accept	UnicodeEscapeSequence places no constraint on values	"\\uDC00\\uD800"
+# zig-json5 accepts only the JSON escape set (run)
+mined-escape-non-ascii-char	accept	NonEscapeCharacter	"\\\u{E9}"
+# mining agent
+mined-num-sign-dot	reject	DecimalLiteral needs digits on one side of the point	+.
+# mining agent
+mined-num-neg-dot-exp	reject	DecimalLiteral needs digits on one side of the point	-.e1
+# mining agent
+mined-num-exp-leading-zero	accept	ExponentPart :: ExponentIndicator SignedInteger	1e05
+# pyjson5 (Kijewski) 0e branch skips without checking (src/_decoder.pyx)
+mined-num-zero-e	reject	ExponentPart requires DecimalDigits	0e
+# pyjson5 (Kijewski) src/_decoder.pyx
+mined-num-zero-e-fraction	reject	ExponentPart is SignedInteger; no fraction	0e1.5
+# pyjson5 (Kijewski) src/_decoder.pyx
+mined-num-zero-e-two-signs	reject	SignedInteger has at most one sign	0e+-
+# mining agent
+mined-num-hex-with-e-digit	accept	HexIntegerLiteral (e is a hex digit)	0x1e3
+# mining agent
+mined-num-hex-fraction	reject	HexIntegerLiteral has no fraction	0x1.5
+# mining agent
+mined-num-hex-binary-exponent	reject	HexIntegerLiteral has no exponent	0x1p3
+# json5 v0.2.0 rejected negative hex (github.com/json5/json5/issues/36)
+mined-num-neg-zero-hex	accept	JSON5Number :: - JSON5NumericLiteral	-0x0
+# pyjson5 (Kijewski) #158 drops underscores
+mined-num-hex-underscore	reject	no numeric separators in ES5.1	0x_1
+# pyjson5 (Kijewski) #158
+mined-num-fraction-underscore	reject	no numeric separators in ES5.1	.5_0
+# pyjson5 (Kijewski) #158
+mined-num-exponent-underscore	reject	no numeric separators in ES5.1	1e1_0
+# upstream cj5 rejects {a:1e1000} (run)
+mined-num-huge-exponent	accept	DecimalLiteral (range limits are implementation limits, not grammar)	1e1000
+# serde_json5 #12 loses precision (github.com/google/serde_json5/issues/12)
+mined-num-beyond-double-precision	accept	DecimalIntegerLiteral	9007199254740993
+# mining agent: no suite tests it
+mined-num-then-dollar	reject	ES5.1-7.8.3 following character	1$
+# mining agent
+mined-num-then-escape	reject	ES5.1-7.8.3 following character	1\\u0061
+# mining agent
+mined-key-neg-infinity	reject	JSON5MemberName is an identifier or string	{-Infinity:1}
+# json5-tests #2; json5-spec #49
+mined-key-while	accept	IdentifierName includes ReservedWord	{while:1}
+# kniazkov/json #7 rejected {true:1} (github.com/kniazkov/json/issues/7)
+mined-key-literal-names	accept	IdentifierName includes literals	{true:1,false:2,Infinity:3,NaN:4}
+# mining agent
+mined-key-escaped-dollar	accept	IdentifierStart :: \ UnicodeEscapeSequence	{\\u0024:1}
+# mining agent
+mined-key-escaped-underscore	accept	IdentifierStart :: \ UnicodeEscapeSequence	{\\u005F:1}
+# cj5 and zig-json5 reject non-ASCII identifiers (run)
+mined-key-modifier-letter	accept	UnicodeLetter Lm	{\u{2B0}:1}
+# cj5 and zig-json5 (run)
+mined-key-titlecase-letter	accept	UnicodeLetter Lt	{\u{1C5}:1}
+# mining agent
+mined-key-feminine-ordinal	accept	UnicodeLetter Lo	{\u{AA}:1}
+# ES2015 ID_Start excludes it; engines copying modern JavaScript reject
+mined-key-pattern-syntax-lm	accept	UnicodeLetter Lm (ES5 uses categories, not ID_Start)	{\u{2E2F}:1}
+# parsers using XID_Start accept it
+mined-key-math-symbol	reject	Sm is not UnicodeLetter	{\u{2118}:1}
+# parsers using XID_Start accept it
+mined-key-other-symbol	reject	So is not UnicodeLetter	{\u{212E}:1}
+# parsers using XID_Start accept it
+mined-key-modifier-symbol	reject	Sk is not UnicodeLetter	{\u{309B}:1}
+# parsers using XID_Continue accept it
+mined-key-middle-dot	reject	Po is not IdentifierPart	{a\u{B7}:1}
+# mining agent
+mined-key-spacing-mark	accept	IdentifierPart: UnicodeCombiningMark Mc	{a\u{903}:1}
+# mining agent
+mined-key-connector	accept	IdentifierPart: UnicodeConnectorPunctuation	{a\u{203F}:1}
+# mining agent
+mined-key-connector-first	reject	Pc is IdentifierPart only	{\u{203F}:1}
+# mining agent
+mined-key-digit-first	reject	Nd is IdentifierPart only	{\u{660}:1}
+# mining agent
+mined-key-zwnj-first	reject	ZWNJ is IdentifierPart only	{\u{200C}b:1}
+# pyjson5 (Kijewski) does not check escaped characters (src/_decoder.pyx)
+mined-key-escaped-hyphen	reject	ES5.1-7.6 escape must denote an allowed character	{a\\u002D:1}
+# pyjson5 (Kijewski) src/_decoder.pyx
+mined-key-escaped-zwnj-first	reject	ES5.1-7.6 escape must denote an allowed character	{\\u200C:1}
+# pyjson5 (Kijewski) src/_decoder.pyx
+mined-key-escaped-nul	reject	ES5.1-7.6 escape must denote an allowed character	{a\\u0000:1}
+# cj5 and zig-json5 reject legal escapes (run)
+mined-key-escaped-digit-after-start	accept	IdentifierPart :: \ UnicodeEscapeSequence (a digit)	{a\\u0030:1}
+# mining agent
+mined-key-escaped-zwnj-after-start	accept	IdentifierPart :: \ UnicodeEscapeSequence (ZWNJ)	{a\\u200C:1}
+# mining agent
+mined-key-escaped-null-spelling	accept	IdentifierName; reserved words allowed as keys	{\\u006eull:1}
+# json5 #202 (github.com/json5/json5/issues/202); dpranke json5 grammar allows Cs
+mined-key-escaped-lone-surrogate	reject	ES5.1-7.6 escape must denote an allowed character (Cs is not)	{\\uD800:1}
+# pyjson5 (Kijewski) accepts \U in keys (src/_decoder.pyx)
+mined-key-upper-u-escape	reject	IdentifierName allows only \u escapes	{\\U00000061:1}
+# json5-spec #29 (github.com/json5/json5-spec/issues/29)
+mined-key-hyphenated	reject	IdentifierPart excludes -	{a-b:1}
+# mining agent
+mined-key-dotted	reject	IdentifierPart excludes .	{a.b:1}
+# mining agent
+mined-key-trailing-backslash	reject	IdentifierPart :: \ UnicodeEscapeSequence needs u and four hex digits	{a\\:1}
+# mining agent
+mined-key-es6-escape	reject	UnicodeEscapeSequence :: u HexDigit{4}	{\\u{61}:1}
+# zig-json5 accepts {1:1} (run)
+mined-key-digit-then-letter	reject	IdentifierStart excludes digits	{1a:1}
+# reference json5 2.2.3 (Unicode 10 tables) rejects (run)
+mined-key-unicode-11-letter	accept	UnicodeLetter Lu (Georgian Mtavruli, Unicode 11)	{\u{1C90}:1}
+# mining agent
+mined-value-escaped-true	reject	JSON5Boolean is the literal characters true	tru\\u0065
+# mining agent
+mined-value-capitalized-true	reject	BooleanLiteral is lowercase	True
+# mining agent
+mined-value-bare-identifier	reject	an identifier is not a JSON5Value	abc
+# upstream cj5 accepts (run)
+mined-double-colon	reject	JSON5Member :: JSON5MemberName : JSON5Value	{a::1}
+# upstream cj5 accepts (run)
+mined-missing-key	reject	JSON5Member needs a JSON5MemberName	{:1}
+# json5-dotnet #8 (github.com/json5/json5-dotnet/issues/8)
+mined-nested-trailing-commas	accept	single trailing commas at every level	{a:1,b:'j',c:[1,[1],{a:1},],d:{a:1,},}
+# pyjson5 (Kijewski) decode_io ignores it (github.com/Kijewski/pyjson5/issues/131)
+mined-extra-close-brace	reject	JSON5Text: no tokens after the value	{}}
+# pyjson5 (Kijewski) #131
+mined-extra-close-bracket	reject	JSON5Text: no tokens after the value	[1]]
+# upstream cj5 accepts (run)
+mined-two-objects	reject	JSON5Text is one JSON5Value	{}{}
+# mining agent
+mined-trailing-nul-byte	reject	U+0000 is not WhiteSpace	{a:1}\x00
+# cj5 #6 read past the buffer (github.com/septag/cj5/issues/6)
+mined-truncated-array	reject	JSON5Array needs ]	[1
+# cj5 #6
+mined-truncated-true	reject	JSON5Boolean	tr
+# cj5 #6
+mined-truncated-false-in-array	reject	JSON5Boolean	[f

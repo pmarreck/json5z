@@ -21,9 +21,14 @@ annotate=[
 	tests/ffi_test.zig = C ABI contract tests: NULL policy, embedded NUL, chunked feeding
 	tests/fuzz/differential.mjs = Node driver: seeded grammar-shaped and mutated inputs, reference vs json5z, chunk-split invariance, shrinking
 	tests/fuzz/json5z_wasm.zig = WebAssembly exports of the json5z core for the fuzzer
+	tests/fuzz/spec_reference.mjs = Runs the case files against the reference json5 library with its ledger
+	tests/harness.zig = Judges for each implementation and the exact-ledger set comparison
 	tests/json5_tests = Official JSON5 conformance suite (json5/json5-tests ceb24d4, MIT), pinned by MANIFEST.sha256
 	tests/ledgers = Exact sets of conformance cases each implementation gets wrong
 	tests/oracle/cj5_reference.h = Frozen cj5.h at 3a32d25 renamed cj5ref_*, test-only oracle
+	tests/spec_cases.zig = Runs both case files against json5z and upstream cj5 with exact ledgers
+	tests/spec_cases/json5_1.0.cases = 687 grammar-derived JSON5 cases, each citing its production; written without reading json5z
+	tests/spec_cases/mined.cases = 84 cases from other JSON5 parsers' bug reports, each with its source
 	tests/upstream_cj5 = Degraded oracle: unmodified septag/cj5 5fe4821 (sha256-pinned) and a verdict-only judge wrapper
 	tools/gen-unicode-tables = Regenerates src/unicode_tables.zig from the nixpkgs Unicode Character Database
 ]
