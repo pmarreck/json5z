@@ -87,4 +87,19 @@ pub fn build(b: *std.Build) void {
         .flags = &.{"-std=c11"},
     });
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = upstream_cj5 })).step);
+
+    // Conformance control: the official JSON5 suite against every
+    // implementation, each with an exact ledger of its disagreements.
+    const conformance = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/conformance.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "cj5", .module = cj5_mod },
+                .{ .name = "upstream_cj5", .module = upstream_cj5 },
+            },
+        }),
+    });
+    test_step.dependOn(&b.addRunArtifact(conformance).step);
 }

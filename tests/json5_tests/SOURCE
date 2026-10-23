@@ -1,0 +1,2 @@
+Vendored from https://github.com/json5/json5-tests at ceb24d4080137d70833f86c25659c1331b80a387 (MIT, see LICENSE.md).
+Do not edit: MANIFEST.sha256 pins every file and tests/conformance.zig pins the manifest.

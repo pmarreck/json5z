@@ -9,6 +9,12 @@ const c = @cImport(@cInclude("upstream_cj5_judge.h"));
 /// file breaks this on purpose: the oracle must stay upstream's code.
 const blessed_sha256 = "e58bef96f29281aa248a417d4e2c0b24e3007b828914093f86cfd62794024592";
 
+pub const valid = c.UPSTREAM_CJ5_VALID;
+pub const invalid = c.UPSTREAM_CJ5_INVALID;
+pub const incomplete = c.UPSTREAM_CJ5_INCOMPLETE;
+
+/// Upstream cj5's verdict on a whole document: one of the constants above,
+/// or UPSTREAM_CJ5_OVERFLOW / UPSTREAM_CJ5_OUT_OF_MEMORY (no verdict).
 pub fn judge(json: []const u8) c_int {
     var line: c_int = 0;
     var col: c_int = 0;

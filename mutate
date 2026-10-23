@@ -44,7 +44,18 @@ mutant_oracle_edited() {
 	printf '\n' >>tests/upstream_cj5/cj5.h
 }
 
-mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited)
+mutant_ledger_forgets_case() {
+	# Drop one ledgered upstream disagreement; the conformance set check must fail.
+	replace tests/ledgers/upstream_cj5.txt $'misc/empty.txt\tsuite=reject\tgot=accept\n' ''
+}
+
+mutant_corpus_case_edited() {
+	# Flip a must-reject case into valid JSON5; its manifest hash must catch it.
+	printf '[]' >tests/json5_tests/misc/empty.txt
+}
+
+mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited
+	mutant_ledger_forgets_case mutant_corpus_case_edited)
 
 for m in "${mutants[@]}"; do
 	dir="$work/$m"
