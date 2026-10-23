@@ -41,16 +41,26 @@ and import the `json5z` module (`json5z.validate` or `json5z.Validator`).
 
 ## How correctness is checked
 
+The [JSON5 1.0 specification](https://spec.json5.org/) is the source of
+truth. No single test corpus covers it, so several independent checks are
+combined:
+
 1. The official JSON5 conformance suite
-   ([json5/json5-tests](https://github.com/json5/json5-tests)) is the source
-   of truth.
-2. Unmodified upstream cj5 ([septag/cj5](https://github.com/septag/cj5) at
-   `5fe4821`) is a degraded oracle: an independent JSON5 parser that json5z
+   ([json5/json5-tests](https://github.com/json5/json5-tests)). It has only
+   114 cases and leaves many grammar rules with one example or none, so
+   passing it is a minimum, not proof of spec accuracy.
+2. Differential fuzzing against the reference JavaScript implementation
+   (npm `json5`), including inputs split into random chunks.
+3. Unmodified upstream cj5 ([septag/cj5](https://github.com/septag/cj5) at
+   `5fe4821`) as a degraded oracle: an independent JSON5 parser that json5z
    is expected to beat on both accuracy and speed. Every disagreement between
    json5z and upstream cj5 must be a recorded cj5 defect. Only septag's
    code qualifies; our modified copy is not independent of us.
-3. Seeded fuzzing and mutation testing (`./mutate`) show the tests catch
-   deliberate bugs and that no run can hang.
+4. Mutation testing (`./mutate`) shows the tests catch deliberate bugs and
+   that no run can hang.
+
+Planned: a corpus derived from the specification's grammar productions,
+including inputs that other JSON5 parsers get wrong or never test.
 
 Run everything with `./test`.
 

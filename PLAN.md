@@ -12,6 +12,9 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] Differential fuzz against the reference JavaScript json5 library (npm 2.2.3) plus random chunk-split invariance; 20k cases in ./test, 0 disagreements, bites on a planted bug (done 2026-10-23 13:02 EDT)
 - [x] C FFI (include/json5z.h, pointer+length, streaming) plus a C CLI through it, with ABI and CLI contract tests (done 2026-10-23 13:40 EDT)
 - [x] Ask validate to move from the interim cj5 module to the json5z module, with expected verdict changes (done 2026-10-23 13:45 EDT)
+- [ ] Spec-derived case corpus: accept and reject cases for every JSON5 1.0 grammar production, each citing its production (context: docs/plan_context/spec_cases.md)
+- [ ] Mine other JSON5 parsers (json5/json5, septag/cj5, zig-json5, others) for inputs they mishandle or never test; add each as a spec-cited case (context: docs/plan_context/spec_cases.md)
+- [ ] Run the spec corpus against json5z (empty ledger), upstream cj5 and the reference json5 library, each with an exact disagreement ledger
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [ ] Benchmark against cj5 under the performance-profiling contract
 - [x] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z (done 2026-10-21 14:40 EDT, 03b88d8)
@@ -25,5 +28,5 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Housekeeping
 
-- [ ] Replace the stale Garnix comment in flake.nix and onboard Mechatron Prime CI (target manifest, webhook, badge)
-- [ ] Default build.zig optimize mode to ReleaseFast instead of `standardOptimizeOption`
+- [ ] Onboard Mechatron Prime CI (target manifest, webhook, badge); the stale Garnix comment is already gone
+- [ ] Conform to cross-platform-project-build-arch: ./build (Nix default, --backend=direct), zig-out/<PF>/[<VARIANT>/]<profile>/ product trees, bin/<PF>/json5z entrypoint, ReleaseFast default with safety-checked tests, ./run (context: docs/plan_context/build_arch.md)
