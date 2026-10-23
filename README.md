@@ -9,10 +9,35 @@ values.
 
 ## Status
 
-Early. The Zig validator is not written yet. Until it is, the library is an
-interim C parser derived from cj5 (described below), with its tests and the
-controls that will check json5z (`./test`, `./mutate`). Open work is in
+The validator passes every case of the official JSON5 conformance suite and
+agrees with the reference JavaScript implementation on the fuzz campaign in
+`./test`. An interim C parser derived from cj5 (described below) remains in
+the build until its last consumer moves to json5z. Open work is in
 [PLAN.md](PLAN.md).
+
+## Usage
+
+```sh
+zig build                      # library, header and CLI under zig-out/
+zig-out/bin/json5z config.json5 other.json5
+zig-out/bin/json5z --json - < config.json5
+```
+
+The CLI exits 0 when every input is valid, 1 when any is invalid or
+incomplete, and 2 for usage errors, unreadable input or no verdict. Failures
+report the byte offset of the first character that cannot continue a valid
+document. See `json5z --help`.
+
+From C, include `json5z.h` and link `libjson5z.a`:
+
+```c
+size_t offset;
+int status = json5z_validate(data, length, &offset); /* JSON5Z_VALID, ... */
+```
+
+`json5z_validator_new`, `json5z_validator_feed` and `json5z_validator_finish`
+validate a document in chunks of any size. From Zig, depend on this package
+and import the `json5z` module (`json5z.validate` or `json5z.Validator`).
 
 ## How correctness is checked
 

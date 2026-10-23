@@ -19,6 +19,8 @@ run() {
 }
 
 run nix develop -c zig build test --summary all
+run nix develop -c zig build
+run nix develop -c tests/cli/cli.bash
 run nix develop -c ./mutate
 run nix develop -c ./fuzz 1 20000
 run nix flake check

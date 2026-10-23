@@ -15,6 +15,40 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
+    // C ABI: static library plus include/json5z.h.
+    const json5z_lib = b.addLibrary(.{
+        .linkage = .static,
+        .name = "json5z",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("src/ffi.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
+    });
+    json5z_lib.installHeader(b.path("include/json5z.h"), "json5z.h");
+    b.installArtifact(json5z_lib);
+
+    // C command-line tool, calling the library only through include/json5z.h.
+    const cli = b.addExecutable(.{
+        .name = "json5z",
+        .root_module = b.createModule(.{
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    const version_flag = b.fmt("-DJSON5Z_VERSION=\"{s}\"", .{@import("build.zig.zon").version});
+    const target_flag = b.fmt("-DJSON5Z_TARGET=\"{s}-{s}\"", .{ @tagName(target.result.cpu.arch), @tagName(target.result.os.tag) });
+    const mode_flag = b.fmt("-DJSON5Z_BUILD_MODE=\"{s}\"", .{@tagName(optimize)});
+    const debug_flag: []const u8 = if (optimize == .Debug) "-DJSON5Z_DEBUG_BUILD" else "-DJSON5Z_RELEASE_BUILD";
+    cli.root_module.addCSourceFile(.{
+        .file = b.path("cli/json5z.c"),
+        .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror", version_flag, target_flag, mode_flag, debug_flag },
+    });
+    cli.root_module.addIncludePath(b.path("include"));
+    cli.root_module.linkLibrary(json5z_lib);
+    b.installArtifact(cli);
+
     // Build the interim C library as an artifact
     const lib = b.addLibrary(.{
         .linkage = .static,
@@ -61,6 +95,17 @@ pub fn build(b: *std.Build) void {
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_tests.step);
     test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = json5z_mod })).step);
+    const ffi_tests = b.addTest(.{
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/ffi_test.zig"),
+            .target = target,
+            .optimize = optimize,
+            .link_libc = true,
+        }),
+    });
+    ffi_tests.root_module.addIncludePath(b.path("include"));
+    ffi_tests.root_module.linkLibrary(json5z_lib);
+    test_step.dependOn(&b.addRunArtifact(ffi_tests).step);
 
     // Refactoring regression check: the interim parser (token and validate-only
     // modes) against its own frozen pre-refactor copy. Not a JSON5 oracle.

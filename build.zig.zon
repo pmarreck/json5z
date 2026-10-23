@@ -8,6 +8,8 @@
         "build.zig.zon",
         "interim",
         "src",
+        "include",
+        "cli",
         "flake.nix",
         "LICENSE",
         "README.md",

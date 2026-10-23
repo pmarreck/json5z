@@ -17,3 +17,4 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Housekeeping] Add a `./test` entry point that runs `zig build test`, ./mutate and the flake check (done 2026-10-18 23:40 EDT)
 - [x] [Large-document validity (requested by validate)] Tell validate that validateAll now uses memory proportional to nesting depth (done 2026-10-18 23:45 EDT, dd955d2)
 - [x] [Become json5z (spec-accurate JSON5 validation)] Record the json5z decision and goals (context: docs/plan_context/json5z.md) (done 2026-10-21 14:10 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] BDFN renames the project directory to json5z; then rename the branch to yolo, update README, build.zig.zon name and flake pname (done 2026-10-21 14:15 EDT)
