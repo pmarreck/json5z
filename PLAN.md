@@ -10,7 +10,9 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] Quarantine the modified cj5 and its refactoring check under interim/cj5_modified (done 2026-10-21 14:55 EDT)
 - [x] Vendor unmodified septag/cj5 5fe4821 cj5.h under tests/upstream_cj5 with a blessed sha256 check, compiled with static symbols, as the degraded oracle (done 2026-10-23 11:33 EDT)
 - [x] Add the official JSON5 conformance suite (json5/json5-tests ceb24d4) to ./test with exact disagreement ledgers: upstream and interim cj5 each miss 51 of 114 cases (done 2026-10-23 12:20 EDT)
-- [ ] Write the Zig-core streaming validator (O(depth) state) test-first against the conformance suite, with unmodified upstream cj5 as the degraded differential oracle
+- [x] Write the Zig-core streaming validator (one bit per open container, chunked feed) test-first; it passes all 114 conformance cases with an empty ledger (done 2026-10-23 12:45 EDT)
+- [ ] Mutants for json5z itself (e.g. leading zeros, raw LF in strings, surrogate check) that the unit and conformance tests must catch
+- [ ] Differential fuzz against the reference JavaScript json5 library, plus random chunk-split invariance
 - [ ] C FFI plus a C CLI that validates files through it
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [ ] Benchmark against cj5 under the performance-profiling contract
@@ -26,6 +28,5 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Housekeeping
 
-- [x] Add a `./test` entry point that runs `zig build test`, ./mutate and the flake check (done 2026-10-18 23:40 EDT)
 - [ ] Replace the stale Garnix comment in flake.nix and onboard Mechatron Prime CI (target manifest, webhook, badge)
 - [ ] Default build.zig optimize mode to ReleaseFast instead of `standardOptimizeOption`

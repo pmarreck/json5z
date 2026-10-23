@@ -8,7 +8,14 @@ pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    // Build the C library as an artifact
+    // json5z: spec-accurate streaming JSON5 validator (pure Zig, no I/O).
+    const json5z_mod = b.addModule("json5z", .{
+        .root_source_file = b.path("src/json5z.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Build the interim C library as an artifact
     const lib = b.addLibrary(.{
         .linkage = .static,
         .name = "cj5",
@@ -53,6 +60,7 @@ pub fn build(b: *std.Build) void {
     const run_tests = b.addRunArtifact(tests);
     const test_step = b.step("test", "Run all tests");
     test_step.dependOn(&run_tests.step);
+    test_step.dependOn(&b.addRunArtifact(b.addTest(.{ .root_module = json5z_mod })).step);
 
     // Refactoring regression check: the interim parser (token and validate-only
     // modes) against its own frozen pre-refactor copy. Not a JSON5 oracle.
@@ -98,6 +106,7 @@ pub fn build(b: *std.Build) void {
             .imports = &.{
                 .{ .name = "cj5", .module = cj5_mod },
                 .{ .name = "upstream_cj5", .module = upstream_cj5 },
+                .{ .name = "json5z", .module = json5z_mod },
             },
         }),
     });

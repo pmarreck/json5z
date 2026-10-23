@@ -8,6 +8,8 @@ annotate=[
 	interim/cj5_modified/cj5.h = Modified cj5 C parser (interim library code, not an oracle), with a validate-only O(depth) mode
 	interim/cj5_modified/tests/oracle = Frozen pre-refactor copy of the modified cj5; refactoring regression check only, not a JSON5 oracle
 	mutate = Mutation control: deliberate cj5.h bugs under timeout; each must fail the tests
+	src/json5z.zig = json5z core: streaming JSON5 1.0 validator, UTF-8 decoding across chunks, one bit per open container
+	src/unicode_tables.zig = Generated Unicode 17.0.0 ranges for identifier start/part and Zs whitespace
 	test = Complete test entry point: zig tests, ./mutate, nix flake check
 	tests/conformance.zig = Conformance control: every suite case against each implementation, with exact disagreement ledgers
 	tests/differential.zig = Three-way differential: frozen reference vs live token vs validate-only parser, seeded fuzz
@@ -15,4 +17,5 @@ annotate=[
 	tests/ledgers = Exact sets of conformance cases each implementation gets wrong
 	tests/oracle/cj5_reference.h = Frozen cj5.h at 3a32d25 renamed cj5ref_*, test-only oracle
 	tests/upstream_cj5 = Degraded oracle: unmodified septag/cj5 5fe4821 (sha256-pinned) and a verdict-only judge wrapper
+	tools/gen-unicode-tables = Regenerates src/unicode_tables.zig from the nixpkgs Unicode Character Database
 ]

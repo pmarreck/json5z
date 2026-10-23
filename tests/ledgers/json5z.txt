@@ -1,0 +1,2 @@
+# Conformance cases (tests/json5_tests paths) where json5z disagrees with the
+# JSON5 suite. json5z aims for spec accuracy, so this ledger must stay empty.

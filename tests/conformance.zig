@@ -11,6 +11,7 @@
 const std = @import("std");
 const cj5_interim = @import("cj5");
 const upstream_cj5 = @import("upstream_cj5");
+const json5z = @import("json5z");
 
 /// sha256 of tests/json5_tests/MANIFEST.sha256. Changing any case means
 /// regenerating the manifest and this constant in one conspicuous diff.
@@ -130,6 +131,17 @@ fn interimAccepts(bytes: []const u8) anyerror!bool {
         .valid => true,
         .invalid => false,
     };
+}
+
+fn json5zAccepts(bytes: []const u8) anyerror!bool {
+    return switch (try json5z.validate(std.testing.allocator, bytes)) {
+        .valid => true,
+        .invalid => false,
+    };
+}
+
+test "json5z agrees with every case in the suite" {
+    try expectLedger("json5z", @embedFile("ledgers/json5z.txt"), json5zAccepts);
 }
 
 test "upstream cj5 (degraded oracle) disagrees with the suite exactly as ledgered" {
