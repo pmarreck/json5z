@@ -11,7 +11,7 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] Vendor unmodified septag/cj5 5fe4821 cj5.h under tests/upstream_cj5 with a blessed sha256 check, compiled with static symbols, as the degraded oracle (done 2026-10-23 11:33 EDT)
 - [x] Add the official JSON5 conformance suite (json5/json5-tests ceb24d4) to ./test with exact disagreement ledgers: upstream and interim cj5 each miss 51 of 114 cases (done 2026-10-23 12:20 EDT)
 - [x] Write the Zig-core streaming validator (one bit per open container, chunked feed) test-first; it passes all 114 conformance cases with an empty ledger (done 2026-10-23 12:45 EDT)
-- [ ] Mutants for json5z itself (e.g. leading zeros, raw LF in strings, surrogate check) that the unit and conformance tests must catch
+- [x] Mutants for json5z itself (raw LF in strings, surrogates, literal letters, object comma) all caught; one found a test gap, another found dead code (done 2026-10-23 12:58 EDT)
 - [ ] Differential fuzz against the reference JavaScript json5 library, plus random chunk-split invariance
 - [ ] C FFI plus a C CLI that validates files through it
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
@@ -24,7 +24,6 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Large-document validity (requested by validate)
 
-- [x] Tell validate that validateAll now uses memory proportional to nesting depth (done 2026-10-18 23:45 EDT, dd955d2)
 
 ## Housekeeping
 

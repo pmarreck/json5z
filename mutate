@@ -54,8 +54,30 @@ mutant_corpus_case_edited() {
 	printf '[]' >tests/json5_tests/misc/empty.txt
 }
 
+mutant_json5z_raw_lf_in_string() {
+	# Accept an unescaped LF inside a string.
+	replace src/json5z.zig "} else if (cp == '\n' or cp == '\r') {" "} else if (cp == '\r') {"
+}
+
+mutant_json5z_accepts_surrogates() {
+	# Accept UTF-8-encoded surrogate code points.
+	replace src/json5z.zig '(cp >= 0xD800 and cp <= 0xDFFF) or ' ''
+}
+
+mutant_json5z_literal_unchecked() {
+	# Accept any characters in place of a literal's remaining letters.
+	replace src/json5z.zig 'if (cp != self.word[self.word_index]) return self.fail();' ''
+}
+
+mutant_json5z_object_comma_skips_key() {
+	# After a comma in an object, expect a value instead of a key.
+	replace src/json5z.zig "',' => self.expect = .object_key_or_close," "',' => self.expect = .object_value,"
+}
+
 mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited
-	mutant_ledger_forgets_case mutant_corpus_case_edited)
+	mutant_ledger_forgets_case mutant_corpus_case_edited
+	mutant_json5z_raw_lf_in_string mutant_json5z_accepts_surrogates
+	mutant_json5z_literal_unchecked mutant_json5z_object_comma_skips_key)
 
 for m in "${mutants[@]}"; do
 	dir="$work/$m"

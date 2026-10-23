@@ -255,18 +255,18 @@ pub const Validator = struct {
                 '.' => return self.setLex(.number_int_dot),
                 'e', 'E' => return self.setLex(.number_exp),
                 'x', 'X' => return self.setLex(.number_hex_start),
-                else => if (!self.endNumber(cp)) return,
+                else => self.endValueToken(),
             },
             .number_int => switch (cp) {
                 '0'...'9' => return,
                 '.' => return self.setLex(.number_int_dot),
                 'e', 'E' => return self.setLex(.number_exp),
-                else => if (!self.endNumber(cp)) return,
+                else => self.endValueToken(),
             },
             .number_int_dot, .number_frac => switch (cp) {
                 '0'...'9' => return self.setLex(.number_frac),
                 'e', 'E' => return self.setLex(.number_exp),
-                else => if (!self.endNumber(cp)) return,
+                else => self.endValueToken(),
             },
             .number_leading_dot => {
                 if (!isDecimalDigit(cp)) return self.fail();
@@ -283,7 +283,7 @@ pub const Validator = struct {
             },
             .number_exp_digits => {
                 if (isDecimalDigit(cp)) return;
-                if (!self.endNumber(cp)) return;
+                self.endValueToken();
             },
             .number_hex_start => {
                 if (!isHexDigit(cp)) return self.fail();
@@ -291,7 +291,7 @@ pub const Validator = struct {
             },
             .number_hex => {
                 if (isHexDigit(cp)) return;
-                if (!self.endNumber(cp)) return;
+                self.endValueToken();
             },
             .word => {
                 if (self.word_index < self.word.len) {
@@ -299,10 +299,7 @@ pub const Validator = struct {
                     self.word_index += 1;
                     return;
                 }
-                // The literal is complete only if the identifier ends here.
-                if (cp == '\\' or isIdentifierPart(cp)) return self.fail();
-                self.lex = .none;
-                self.valueDone();
+                self.endValueToken();
             },
             .ident => {
                 if (isIdentifierPart(cp)) return;
@@ -349,17 +346,15 @@ pub const Validator = struct {
         return .word;
     }
 
-    /// A numeric literal may not be followed directly by an IdentifierStart
-    /// or a decimal digit (ECMAScript 5.1, section 7.8.3). Returns true when
-    /// the number ended and `cp` must be re-dispatched.
-    fn endNumber(self: *Validator, cp: u21) bool {
-        if (cp == '\\' or isDecimalDigit(cp) or isIdentifierStart(cp)) {
-            self.fail();
-            return false;
-        }
+    /// A number or literal ended on `cp`, which the caller re-dispatches.
+    /// ECMAScript 5.1 forbids an IdentifierStart or digit straight after a
+    /// numeric literal, and a literal followed by an IdentifierPart would be
+    /// a longer identifier. Neither needs a check here: no token that may
+    /// follow a JSON5 value (whitespace, comment, `,`, `]`, `}`) begins with
+    /// such a character, so re-dispatching rejects it at the same offset.
+    fn endValueToken(self: *Validator) void {
         self.lex = .none;
         self.valueDone();
-        return true;
     }
 
     /// Dispatch a code point outside any token.
@@ -579,6 +574,9 @@ test "numbers" {
 
 test "literals end at the identifier boundary" {
     for ([_][]const u8{ "nullx", "truex", "false1", "true\\u0041", "nul", "tru", "NaNa", "null_" }) |s|
+        try expectRejected(s);
+    // Right length, wrong letter: every letter of a literal is checked.
+    for ([_][]const u8{ "nulL", "trve", "fakse", "Infinitz", "NaM", "-Infinitz", "+NaM", "[nUll]" }) |s|
         try expectRejected(s);
     try expectValid("[null,true]");
 }

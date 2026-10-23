@@ -15,3 +15,4 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Large-document validity (requested by validate)] Add a validate-only cj5 path with O(depth) state (no token storage), proven against a frozen pre-refactor parser by differential corpus and fuzz tests; repoint validateAll/isValid at it (done 2026-10-18 23:40 EDT)
 - [x] [Large-document validity (requested by validate)] Bound the `}` parent walk so a corrupt chain ends with no verdict instead of spinning; add ./mutate with per-mutant timeouts (done 2026-10-18 23:40 EDT)
 - [x] [Housekeeping] Add a `./test` entry point that runs `zig build test`, ./mutate and the flake check (done 2026-10-18 23:40 EDT)
+- [x] [Large-document validity (requested by validate)] Tell validate that validateAll now uses memory proportional to nesting depth (done 2026-10-18 23:45 EDT, dd955d2)
