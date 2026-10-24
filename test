@@ -23,7 +23,7 @@ run nix develop -c zig build
 run nix develop -c tests/cli/cli.bash
 run nix develop -c ./mutate
 run nix develop -c ./fuzz 1 20000
-run nix develop -c node tests/fuzz/spec_reference.mjs tests/ledgers/spec_reference_json5.txt tests/spec_cases/json5_1.0.cases tests/spec_cases/mined.cases
+run nix develop -c node tests/fuzz/spec_reference.mjs tests/ledgers/spec_reference_json5.txt tests/spec_cases/json5_1.0.cases tests/spec_cases/mined.cases tests/spec_cases/rulings.cases
 run nix flake check
 
 exit "$failures"

@@ -43,13 +43,23 @@ run good.json5 </dev/null
 check "valid file" 0 "✓ good.json5: valid" ""
 
 run bad.json5 </dev/null
-check "invalid file reports the byte offset" 1 "✗ bad.json5: invalid at byte 3" ""
+check "invalid file reports line, column and byte offset" 1 "✗ bad.json5: invalid at line 1, column 4 (byte 3)" ""
 
 run short.json5 </dev/null
-check "incomplete file" 1 "✗ short.json5: incomplete, input ended at byte 5" ""
+check "incomplete file" 1 "✗ short.json5: incomplete, input ended at line 1, column 6 (byte 5)" ""
+
+printf '[\n  1,\n  ,]' >multiline.json5
+run multiline.json5 </dev/null
+check "lines and columns count from 1" 1 "✗ multiline.json5: invalid at line 3, column 3 (byte 9)" ""
+
+# 70,000 blank lines span the CLI's 64 KiB read chunks.
+yes '' | head -n 70000 >long.json5
+printf x >>long.json5
+run long.json5 </dev/null
+check "line counting crosses read chunks" 1 "✗ long.json5: invalid at line 70001, column 1 (byte 70000)" ""
 
 run good.json5 bad.json5 </dev/null
-check "any invalid input fails the run" 1 "$(printf '✓ good.json5: valid\n✗ bad.json5: invalid at byte 3')" ""
+check "any invalid input fails the run" 1 "$(printf '✓ good.json5: valid\n✗ bad.json5: invalid at line 1, column 4 (byte 3)')" ""
 
 run "with space/doc one.json5" </dev/null
 check "path with spaces" 0 "✓ with space/doc one.json5: valid" ""
@@ -61,7 +71,7 @@ run - <good.json5
 check "stdin via -" 0 "✓ -: valid" ""
 
 run @stdin <bad.json5
-check "stdin via @stdin" 1 "✗ -: invalid at byte 3" ""
+check "stdin via @stdin" 1 "✗ -: invalid at line 1, column 4 (byte 3)" ""
 
 run <good.json5
 check "stdin when no FILE is given" 0 "✓ -: valid" ""
@@ -73,10 +83,10 @@ run good.json5 --ascii </dev/null
 check "options after files; --ascii" 0 "OK   good.json5: valid" ""
 
 run --simple bad.json5 </dev/null
-check "--simple is --ascii" 1 "FAIL bad.json5: invalid at byte 3" ""
+check "--simple is --ascii" 1 "FAIL bad.json5: invalid at line 1, column 4 (byte 3)" ""
 
 run --json good.json5 bad.json5 short.json5 </dev/null
-check "--json emits JSON Lines" 1 "$(printf '%s\n' '{"path":"good.json5","verdict":"valid"}' '{"path":"bad.json5","verdict":"invalid","offset":3}' '{"path":"short.json5","verdict":"incomplete","offset":5}')" ""
+check "--json emits JSON Lines" 1 "$(printf '%s\n' '{"path":"good.json5","verdict":"valid"}' '{"path":"bad.json5","verdict":"invalid","offset":3,"line":1,"column":4}' '{"path":"short.json5","verdict":"incomplete","offset":5,"line":1,"column":6}')" ""
 
 run --json "with space/doc one.json5" </dev/null
 check "--json path with spaces" 0 '{"path":"with space/doc one.json5","verdict":"valid"}' ""
@@ -94,7 +104,7 @@ run missing.json5 </dev/null
 check "unreadable input exits 2" 2 "" "json5z: cannot open 'missing.json5': No such file or directory"
 
 run missing.json5 bad.json5 </dev/null
-check "trouble outranks an invalid verdict" 2 "✗ bad.json5: invalid at byte 3" "json5z: cannot open 'missing.json5': No such file or directory"
+check "trouble outranks an invalid verdict" 2 "✗ bad.json5: invalid at line 1, column 4 (byte 3)" "json5z: cannot open 'missing.json5': No such file or directory"
 
 run --bogus </dev/null
 check "unknown option exits 2" 2 "" "json5z: unknown option '--bogus' (try --help)"

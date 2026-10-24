@@ -2,7 +2,7 @@
 // reference JavaScript json5 library. Inputs come from a seeded generator of
 // grammar-shaped documents plus byte-level mutations. For every input the
 // two must agree on accept/reject, and json5z must return the same verdict
-// and offset when the input is fed in random chunks.
+// and failure location when the input is fed in random chunks.
 //
 // Usage: node differential.mjs WASM SEED COUNT
 // Env:   JSON5_REFERENCE  directory of the json5 npm package (set by the flake)
@@ -136,7 +136,7 @@ function json5z(bytes, chunked) {
 		at += len;
 	}
 	const code = z.finish();
-	return { code, offset: code === 0 ? 0 : z.failureOffset() };
+	return code === 0 ? { code } : { code, offset: z.failureOffset(), line: z.failureLine(), column: z.failureColumn() };
 }
 
 const show = (bytes) => "`" + Array.from(bytes, (c) => (c >= 0x20 && c < 0x7f && c !== 0x5c ? String.fromCharCode(c) : `\\x${c.toString(16).padStart(2, "0")}`)).join("") + "`";
@@ -170,7 +170,7 @@ for (let i = 0; i < count && failures.length < 10; i++) {
 	const split = json5z(bytes, true);
 	tally[want ? "accept" : "reject"]++;
 	cases++;
-	if (whole.code !== split.code || whole.offset !== split.offset) {
+	if (JSON.stringify(whole) !== JSON.stringify(split)) {
 		failures.push(`chunked verdict differs: ${show(bytes)} whole=${JSON.stringify(whole)} split=${JSON.stringify(split)}`);
 	} else if ((whole.code === 0) !== want) {
 		const small = shrink(bytes, (b) => (json5z(b, false).code === 0) !== referenceAccepts(b));

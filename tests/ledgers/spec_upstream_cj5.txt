@@ -304,3 +304,9 @@ ws-zs-202f	expected=accept	got=reject
 ws-zs-205f	expected=accept	got=reject
 ws-zs-3000	expected=accept	got=reject
 ws-zs-around-object-tokens	expected=accept	got=reject
+ruling-escaped-false-in-array	expected=reject	got=accept
+ruling-bmp-letter-key-last	expected=accept	got=reject
+ruling-huge-exponent	expected=accept	got=reject	(a range limit, which JSON5 section 10 permits; json5z sets none)
+ruling-tiny-exponent	expected=accept	got=reject	(a range limit, which JSON5 section 10 permits; json5z sets none)
+ruling-long-integer	expected=accept	got=reject	(a range limit, which JSON5 section 10 permits; json5z sets none)
+ruling-long-hex	expected=accept	got=reject	(a range limit, which JSON5 section 10 permits; json5z sets none)

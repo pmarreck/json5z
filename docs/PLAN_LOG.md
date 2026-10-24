@@ -22,3 +22,9 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Become json5z (spec-accurate JSON5 validation)] Quarantine the modified cj5 and its refactoring check under interim/cj5_modified (done 2026-10-21 14:55 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] Ask validate to switch its dependency from pmarreck/cj5 to pmarreck/json5z (done 2026-10-21 14:40 EDT, 03b88d8)
 - [x] [Become json5z (spec-accurate JSON5 validation)] After validate switched (validate 40ec7df70), archive GitHub pmarreck/cj5 so old validate commits stay buildable (done 2026-10-23 11:27 EDT)
+
+## Retired 2026-10-24
+
+- [x] [Become json5z (spec-accurate JSON5 validation)] Vendor unmodified septag/cj5 5fe4821 cj5.h under tests/upstream_cj5 with a blessed sha256 check, compiled with static symbols, as the degraded oracle (done 2026-10-23 11:33 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Add the official JSON5 conformance suite (json5/json5-tests ceb24d4) to ./test with exact disagreement ledgers: upstream and interim cj5 each miss 51 of 114 cases (done 2026-10-23 12:20 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Write the Zig-core streaming validator (one bit per open container, chunked feed) test-first; it passes all 114 conformance cases with an empty ledger (done 2026-10-23 12:45 EDT)

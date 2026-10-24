@@ -9,7 +9,7 @@ var input: [1 << 16]u8 = undefined;
 var stack_memory: [1 << 16]u8 = undefined;
 var fba: std.heap.FixedBufferAllocator = undefined;
 var validator: json5z.Validator = undefined;
-var failure_offset: usize = 0;
+var failure: json5z.Failure = undefined;
 
 export fn inputBuffer() [*]u8 {
     return &input;
@@ -32,12 +32,13 @@ export fn feed(offset: usize, len: usize) u32 {
     return 0;
 }
 
-/// 0 valid, 1 invalid, 2 incomplete; see `failureOffset` for the last two.
+/// 0 valid, 1 invalid, 2 incomplete; see `failureOffset`, `failureLine` and
+/// `failureColumn` for the last two.
 export fn finish() u32 {
     return switch (validator.finish()) {
         .valid => 0,
         .invalid => |f| blk: {
-            failure_offset = f.offset;
+            failure = f;
             break :blk switch (f.kind) {
                 .invalid => 1,
                 .incomplete => 2,
@@ -47,5 +48,13 @@ export fn finish() u32 {
 }
 
 export fn failureOffset() usize {
-    return failure_offset;
+    return failure.offset;
+}
+
+export fn failureLine() usize {
+    return failure.line;
+}
+
+export fn failureColumn() usize {
+    return failure.column;
 }

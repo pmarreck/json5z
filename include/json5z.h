@@ -26,6 +26,16 @@ typedef enum json5z_status {
 	JSON5Z_INCOMPLETE = 2,        /* the input ended before the document did */
 } json5z_status;
 
+/* Where a document failed: the byte offset of the first character that cannot
+ * continue a valid document (for INCOMPLETE, the total length fed), and its
+ * 1-based line and column. Columns count code points. Lines end at LF, CR,
+ * CR LF, U+2028 and U+2029, JSON5's line terminators. */
+typedef struct json5z_location {
+	size_t offset;
+	size_t line;
+	size_t column;
+} json5z_location;
+
 /* Streaming validator. Not thread-safe; use one per document and thread. */
 typedef struct json5z_validator json5z_validator;
 
@@ -42,12 +52,12 @@ void json5z_validator_free(json5z_validator* validator);
 int json5z_validator_feed(json5z_validator* validator, const uint8_t* data, size_t length);
 
 /* End of input. Returns JSON5Z_VALID, JSON5Z_INVALID or JSON5Z_INCOMPLETE.
- * Unless VALID, stores the failure's byte offset in *failure_offset when
- * failure_offset is not NULL (for INCOMPLETE, the total length fed). */
-int json5z_validator_finish(json5z_validator* validator, size_t* failure_offset);
+ * Unless VALID, stores the failure's location in *failure when failure is not
+ * NULL; otherwise *failure is left untouched. */
+int json5z_validator_finish(json5z_validator* validator, json5z_location* failure);
 
 /* Validate a whole document in one call. Returns any json5z_status. */
-int json5z_validate(const uint8_t* data, size_t length, size_t* failure_offset);
+int json5z_validate(const uint8_t* data, size_t length, json5z_location* failure);
 
 #ifdef __cplusplus
 }

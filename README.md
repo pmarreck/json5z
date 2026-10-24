@@ -9,9 +9,24 @@ values.
 
 ## Status
 
-The validator passes every case of the official JSON5 conformance suite and
-agrees with the reference JavaScript implementation on the fuzz campaign in
-`./test`. An interim C parser derived from cj5 (described below) remains in
+json5z gets every case in the test corpora right. The two other parsers
+measured against the same cases do not:
+
+| Corpus | json5z | reference json5 (npm 2.2.3) | upstream cj5 (`5fe4821`) |
+|---|---|---|---|
+| Spec-derived cases (687) | 0 wrong | 0 wrong | 272 wrong |
+| Cases mined from other parsers' bugs (84) | 0 wrong | 1 wrong | 32 wrong |
+| Rulings on ambiguous inputs (22) | 0 wrong | 5 wrong | 6 wrong |
+| Official conformance suite (114) | 0 wrong | not measured | 51 wrong |
+
+The reference library's six misses come from two causes. It ships Unicode 10
+identifier tables, so it rejects letters added later, such as U+1C90 from
+Unicode 11. It also reads source by code point, so it accepts characters
+beyond U+FFFF in unquoted keys, which the rulings reject (see
+[the rulings](docs/plan_context/spec_rulings.md)). upstream cj5's misses are
+recorded case by case in `tests/ledgers/`. json5z also agrees with the
+reference library on every input of the differential fuzz campaign in
+`./test`, apart from the ruled cases, which the fuzzer does not generate. An interim C parser derived from cj5 (described below) remains in
 the build until its last consumer moves to json5z. Open work is in
 [PLAN.md](PLAN.md).
 
@@ -25,14 +40,22 @@ zig-out/bin/json5z --json - < config.json5
 
 The CLI exits 0 when every input is valid, 1 when any is invalid or
 incomplete, and 2 for usage errors, unreadable input or no verdict. Failures
-report the byte offset of the first character that cannot continue a valid
-document. See `json5z --help`.
+report where the first character that cannot continue a valid document sits:
+its line and column, both from 1, and its byte offset. Columns count code
+points; lines end at LF, CR, CR LF, U+2028 and U+2029, JSON5's line
+terminators.
+
+```text
+✗ config.json5: invalid at line 3, column 3 (byte 9)
+```
+
+See `json5z --help`.
 
 From C, include `json5z.h` and link `libjson5z.a`:
 
 ```c
-size_t offset;
-int status = json5z_validate(data, length, &offset); /* JSON5Z_VALID, ... */
+json5z_location where; /* offset, line, column */
+int status = json5z_validate(data, length, &where); /* JSON5Z_VALID, ... */
 ```
 
 `json5z_validator_new`, `json5z_validator_feed` and `json5z_validator_finish`
@@ -47,9 +70,11 @@ combined:
 
 1. A spec-derived corpus (`tests/spec_cases/`): 687 cases written from the
    JSON5 1.0 and ECMAScript 5.1 grammars alone, each citing the production
-   that decides it, by an author who did not read json5z's source, plus 84
-   cases mined from other JSON5 parsers' bug reports. json5z disagrees with
-   none; upstream cj5 with 304; the reference JavaScript library with 1.
+   that decides it, by an author who did not read json5z's source; 84 cases
+   mined from other JSON5 parsers' bug reports; and 22 cases recording BDFN
+   (Benevolent Dictator For Now) rulings on inputs the specification leaves
+   ambiguous ([reasons](docs/plan_context/spec_rulings.md)). Results are in
+   the table above.
 2. The official JSON5 conformance suite
    ([json5/json5-tests](https://github.com/json5/json5-tests)). It has only
    114 cases and leaves many grammar rules with one example or none, so

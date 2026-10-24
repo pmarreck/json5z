@@ -78,7 +78,7 @@ static void print_json_string(FILE* out, const char* s)
 	fputc('"', out);
 }
 
-static void report(const options* opt, const char* name, int status, size_t offset)
+static void report(const options* opt, const char* name, int status, const json5z_location* at)
 {
 	const char* verdict = status == JSON5Z_VALID ? "valid" : status == JSON5Z_INVALID ? "invalid" : "incomplete";
 	if (opt->mode == OUTPUT_QUIET) return;
@@ -86,7 +86,7 @@ static void report(const options* opt, const char* name, int status, size_t offs
 		fputs("{\"path\":", stdout);
 		print_json_string(stdout, name);
 		fprintf(stdout, ",\"verdict\":\"%s\"", verdict);
-		if (status != JSON5Z_VALID) fprintf(stdout, ",\"offset\":%zu", offset);
+		if (status != JSON5Z_VALID) fprintf(stdout, ",\"offset\":%zu,\"line\":%zu,\"column\":%zu", at->offset, at->line, at->column);
 		fputs("}\n", stdout);
 		return;
 	}
@@ -95,12 +95,12 @@ static void report(const options* opt, const char* name, int status, size_t offs
 	const char* on = opt->color ? (ok ? "\x1b[32m" : "\x1b[31m") : "";
 	const char* off = opt->color ? "\x1b[0m" : "";
 	if (ok) printf("%s%s%s %s: valid\n", on, mark, off, name);
-	else if (status == JSON5Z_INVALID) printf("%s%s%s %s: invalid at byte %zu\n", on, mark, off, name, offset);
-	else printf("%s%s%s %s: incomplete, input ended at byte %zu\n", on, mark, off, name, offset);
+	else if (status == JSON5Z_INVALID) printf("%s%s%s %s: invalid at line %zu, column %zu (byte %zu)\n", on, mark, off, name, at->line, at->column, at->offset);
+	else printf("%s%s%s %s: incomplete, input ended at line %zu, column %zu (byte %zu)\n", on, mark, off, name, at->line, at->column, at->offset);
 }
 
 /* Validate one input stream. Returns a json5z_status, or -3 on read error. */
-static int validate_stream(FILE* in, size_t* offset)
+static int validate_stream(FILE* in, json5z_location* at)
 {
 	static uint8_t buffer[64 * 1024];
 	json5z_validator* v = json5z_validator_new();
@@ -111,7 +111,7 @@ static int validate_stream(FILE* in, size_t* offset)
 		status = json5z_validator_feed(v, buffer, n);
 		if (status != JSON5Z_VALID) break;
 	}
-	if (status == JSON5Z_VALID) status = ferror(in) ? -3 : json5z_validator_finish(v, offset);
+	if (status == JSON5Z_VALID) status = ferror(in) ? -3 : json5z_validator_finish(v, at);
 	json5z_validator_free(v);
 	return status;
 }
@@ -126,13 +126,13 @@ static int check_input(const options* opt, const char* arg)
 		fprintf(stderr, "json5z: cannot open '%s': %s\n", arg, strerror(errno));
 		return EXIT_TROUBLE;
 	}
-	size_t offset = 0;
-	const int status = validate_stream(in, &offset);
+	json5z_location at = { 0, 0, 0 };
+	const int status = validate_stream(in, &at);
 	if (!use_stdin) fclose(in);
 	switch (status) {
-	case JSON5Z_VALID: report(opt, name, status, offset); return EXIT_ALL_VALID;
+	case JSON5Z_VALID: report(opt, name, status, &at); return EXIT_ALL_VALID;
 	case JSON5Z_INVALID:
-	case JSON5Z_INCOMPLETE: report(opt, name, status, offset); return EXIT_SOME_INVALID;
+	case JSON5Z_INCOMPLETE: report(opt, name, status, &at); return EXIT_SOME_INVALID;
 	case JSON5Z_OUT_OF_MEMORY: fprintf(stderr, "json5z: %s: out of memory, no verdict\n", name); return EXIT_TROUBLE;
 	default: fprintf(stderr, "json5z: %s: read error\n", name); return EXIT_TROUBLE;
 	}

@@ -12,6 +12,11 @@ pub const Failure = struct {
     /// Byte offset of the first code point that cannot continue a valid
     /// document; for `incomplete`, the length of the input.
     offset: usize,
+    /// 1-based line of that position. Lines end at LF, CR, CR LF, U+2028
+    /// and U+2029, the JSON5 LineTerminator set, wherever they appear.
+    line: usize,
+    /// 1-based column of that position, counted in code points.
+    column: usize,
 
     pub const Kind = enum { invalid, incomplete };
 };
@@ -86,6 +91,11 @@ pub const Validator = struct {
     offset: usize = 0,
     /// Offset of the code point being processed.
     cp_start: usize = 0,
+    /// Line and column of the next code point.
+    line: usize = 1,
+    column: usize = 1,
+    /// The previous code point was CR, so an LF now ends no further line.
+    after_cr: bool = false,
     // UTF-8 decoding across chunk boundaries.
     utf8_need: u2 = 0,
     utf8_cp: u21 = 0,
@@ -123,7 +133,7 @@ pub const Validator = struct {
     /// End of input: the verdict on everything fed so far.
     pub fn finish(self: *Validator) Verdict {
         if (self.failure) |f| return .{ .invalid = f };
-        const incomplete: Verdict = .{ .invalid = .{ .kind = .incomplete, .offset = self.offset } };
+        const incomplete: Verdict = .{ .invalid = .{ .kind = .incomplete, .offset = self.offset, .line = self.line, .column = self.column } };
         if (self.utf8_need != 0) return incomplete;
         switch (self.lex) {
             .none, .line_comment => {},
@@ -165,11 +175,25 @@ pub const Validator = struct {
 
     fn codePoint(self: *Validator, cp: u21) Error!void {
         self.cp_start = self.utf8_start;
-        return self.step(cp);
+        try self.step(cp);
+        self.advancePosition(cp);
     }
 
+    /// Line and column bookkeeping after each code point; CR LF ends one line.
+    fn advancePosition(self: *Validator, cp: u21) void {
+        const lf_after_cr = cp == '\n' and self.after_cr;
+        self.after_cr = cp == '\r';
+        if (lf_after_cr) return;
+        if (isLineTerminator(cp)) {
+            self.line += 1;
+            self.column = 1;
+        } else self.column += 1;
+    }
+
+    /// Every failure lies at the code point being decoded, which has not yet
+    /// advanced the line and column.
     fn failAt(self: *Validator, offset: usize) void {
-        self.failure = .{ .kind = .invalid, .offset = offset };
+        self.failure = .{ .kind = .invalid, .offset = offset, .line = self.line, .column = self.column };
     }
 
     fn fail(self: *Validator) void {
@@ -483,21 +507,26 @@ fn isWhitespace(cp: u21) bool {
 }
 
 /// ECMAScript 5.1 IdentifierStart, less the `\` escape form: letters
-/// (Lu Ll Lt Lm Lo Nl), `$` and `_`.
+/// (Lu Ll Lt Lm Lo Nl), `$` and `_`. ES5.1 source text is UTF-16 code
+/// units, so a character beyond U+FFFF arrives as two surrogates, neither a
+/// letter: identifiers stay within the Basic Multilingual Plane
+/// (docs/plan_context/spec_rulings.md, ruling 3).
 fn isIdentifierStart(cp: u21) bool {
     if (cp < 0x80) return switch (cp) {
         'a'...'z', 'A'...'Z', '$', '_' => true,
         else => false,
     };
-    return inRanges(&tables.id_start, cp);
+    return cp <= max_bmp and inRanges(&tables.id_start, cp);
 }
+
+const max_bmp = 0xFFFF;
 
 /// ECMAScript 5.1 IdentifierPart, less the `\` escape form: IdentifierStart
 /// plus Mn Mc Nd Pc, ZWNJ and ZWJ.
 fn isIdentifierPart(cp: u21) bool {
     if (isIdentifierStart(cp) or isDecimalDigit(cp)) return true;
     if (cp < 0x80) return false;
-    return cp == 0x200C or cp == 0x200D or inRanges(&tables.id_continue_only, cp);
+    return cp == 0x200C or cp == 0x200D or (cp <= max_bmp and inRanges(&tables.id_continue_only, cp));
 }
 
 /// Binary search over sorted inclusive ranges.
@@ -544,7 +573,10 @@ fn expectValid(input: []const u8) !void {
 
 fn expectFailure(input: []const u8, kind: Failure.Kind, offset: usize) !void {
     errdefer std.debug.print("expected {t} at {d}: {f}\n", .{ kind, offset, std.zig.fmtString(input) });
-    try testing.expectEqualDeep(Verdict{ .invalid = .{ .kind = kind, .offset = offset } }, try judge(input));
+    const verdict = try judge(input);
+    try testing.expect(verdict == .invalid);
+    try testing.expectEqual(kind, verdict.invalid.kind);
+    try testing.expectEqual(offset, verdict.invalid.offset);
 }
 
 fn expectRejected(input: []const u8) !void {
@@ -600,8 +632,10 @@ test "object keys" {
         "{a\u{0660}: 1}", "{\u{2160}: 1}", "{a : 1}",       "{a/*c*/: 1}",    "{'a b': 1}",
     }) |s| try expectValid(s);
     for ([_][]const u8{
-        "{1: 2}",        "{a b: 1}",   "{a}",     "{a:}",    "{a: 1 b: 2}",   "{\\u0031: 1}",
-        "{a\\u0020: 1}", "{\\x61: 1}", "{-a: 1}", "{'a' 1}", "{\u{0301}: 1}", "{a\u{00A0}b: 1}",
+        "{1: 2}",         "{a b: 1}",        "{a}",     "{a:}",    "{a: 1 b: 2}",   "{\\u0031: 1}",
+        "{a\\u0020: 1}",  "{\\x61: 1}",      "{-a: 1}", "{'a' 1}", "{\u{0301}: 1}", "{a\u{00A0}b: 1}",
+        // Raw characters beyond the BMP cannot appear in unquoted keys.
+        "{\u{10000}: 1}", "{a\u{1D400}: 1}",
     }) |s| try expectRejected(s);
 }
 
@@ -675,4 +709,35 @@ test "memory grows with depth only" {
 test "running out of memory is an error, never a verdict" {
     var failing = std.testing.FailingAllocator.init(testing.allocator, .{ .fail_index = 0 });
     try testing.expectError(error.OutOfMemory, validate(failing.allocator(), "[1]"));
+}
+
+fn expectLocation(input: []const u8, kind: Failure.Kind, offset: usize, line: usize, column: usize) !void {
+    errdefer std.debug.print("expected {t} at {d} ({d}:{d}): {f}\n", .{ kind, offset, line, column, std.zig.fmtString(input) });
+    const want: Verdict = .{ .invalid = .{ .kind = kind, .offset = offset, .line = line, .column = column } };
+    try testing.expectEqualDeep(want, try judge(input));
+}
+
+test "failures report a 1-based line and column in code points" {
+    try expectLocation("x", .invalid, 0, 1, 1);
+    try expectLocation("[1,,2]", .invalid, 3, 1, 4);
+    try expectLocation("[\n  1,\n  ,]", .invalid, 9, 3, 3);
+    // Every JSON5 LineTerminator ends a line; CR LF counts once.
+    try expectLocation("[\r\n,]", .invalid, 3, 2, 1);
+    try expectLocation("[\r,]", .invalid, 2, 2, 1);
+    try expectLocation("[\r\r,]", .invalid, 3, 3, 1);
+    try expectLocation("[\n\r,]", .invalid, 3, 3, 1);
+    try expectLocation("[\u{2028},]", .invalid, 4, 2, 1);
+    try expectLocation("[\u{2029},]", .invalid, 4, 2, 1);
+    // Columns count code points, not bytes or UTF-16 units; a tab is one.
+    try expectLocation("['\u{E9}\u{1F600}' x]", .invalid, 10, 1, 7);
+    try expectLocation("\t\t?", .invalid, 2, 1, 3);
+    // Line terminators inside comments and strings count too.
+    try expectLocation("/*\n\n*/ ?", .invalid, 7, 3, 4);
+    try expectLocation("['a\\\nb' ?]", .invalid, 8, 2, 4);
+    // Malformed UTF-8 is located at the start of its sequence.
+    try expectLocation("\n '\xE2\x82'", .invalid, 3, 2, 3);
+    // Incomplete input is located just past its last character.
+    try expectLocation("", .incomplete, 0, 1, 1);
+    try expectLocation("{a: 1\n", .incomplete, 6, 2, 1);
+    try expectLocation("[\n'\u{E9}", .incomplete, 5, 2, 3);
 }

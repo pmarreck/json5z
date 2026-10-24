@@ -1,0 +1,39 @@
+# Rulings on inputs the JSON5 1.0 specification leaves ambiguous (2026-10-23).
+# Same format as json5_1.0.cases. The spec-derived corpus marks these UNSURE
+# and gives no verdict; each verdict below is a BDFN (Benevolent Dictator For
+# Now) ruling. Reasons: docs/plan_context/spec_rulings.md.
+#
+# Ruling 1: a literal must be spelled with its actual characters; a Unicode
+# escape does not form null, true, false, Infinity or NaN.
+ruling-escaped-null	reject	JSON5Null (literal characters)	n\\u0075ll
+ruling-escaped-true	reject	JSON5Boolean (literal characters)	\\u0074rue
+ruling-escaped-false-in-array	reject	JSON5Boolean (literal characters)	[fals\\u0065]
+ruling-escaped-null-in-object	reject	JSON5Null (literal characters)	{a:n\\u0075ll}
+# Ruling 2: the same for the numeric literals.
+ruling-escaped-infinity	reject	JSON5NumericLiteral (literal characters)	Infinit\\u0079
+ruling-escaped-signed-infinity	reject	JSON5NumericLiteral (literal characters)	-\\u0049nfinity
+ruling-escaped-nan	reject	JSON5NumericLiteral (literal characters)	Na\\u004E
+# Ruling 3: identifiers are judged by UTF-16 code units, as ES5.1 clause 6
+# defines source text. A character outside the Basic Multilingual Plane is
+# two surrogate code units (category Cs), neither a letter, so it cannot
+# appear raw in an unquoted key. Quoted keys and strings may contain it.
+ruling-astral-letter-key	reject	ES5.1-6 SourceCharacter is a code unit	{\u{10000}:1}
+ruling-astral-letter-after-start	reject	ES5.1-6 SourceCharacter is a code unit	{a\u{1D400}:1}
+ruling-astral-mark-after-start	reject	ES5.1-6 SourceCharacter is a code unit	{a\u{1D167}:1}
+ruling-astral-digit-after-start	reject	ES5.1-6 SourceCharacter is a code unit	{a\u{1D7CE}:1}
+ruling-astral-cjk-key	reject	ES5.1-6 SourceCharacter is a code unit	{\u{20000}:1}
+ruling-astral-quoted-key	accept	JSON5String	{'\u{1D400}':1}
+ruling-astral-string	accept	JSON5String	'\u{10000}\u{1D400}'
+ruling-bmp-letter-key-last	accept	ES5.1-7.6 UnicodeLetter	{\u{FFDC}:1}
+# Ruling 4: each \uXXXX escape in an identifier must itself name an allowed
+# character, so an escaped surrogate pair is rejected (consistent with ruling 3).
+ruling-escaped-surrogate-pair-key	reject	ES5.1-7.6 UnicodeEscapeSequence names one code unit	{\\uD835\\uDC00:1}
+ruling-escaped-high-surrogate-key	reject	ES5.1-7.6 UnicodeEscapeSequence names one code unit	{a\\uD835:1}
+ruling-escaped-surrogate-pair-in-string	accept	JSON5String	'\\uD835\\uDC00'
+# Ruling 5: numbers are judged by grammar alone; no range or precision limit.
+ruling-huge-exponent	accept	JSON5NumericLiteral (no range limit)	1e400
+ruling-tiny-exponent	accept	JSON5NumericLiteral (no range limit)	-1e-400
+ruling-long-integer	accept	JSON5NumericLiteral (no precision limit)	123456789012345678901234567890
+ruling-long-hex	accept	JSON5NumericLiteral (no range limit)	0xFFFFFFFFFFFFFFFFFFFFFFFF
+# Ruling 6: no nesting limit beyond memory (one bit per open container);
+# depth is exercised by the unit tests up to 100,000 levels.

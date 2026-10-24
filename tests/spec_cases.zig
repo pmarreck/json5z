@@ -10,9 +10,10 @@
 const std = @import("std");
 const harness = @import("harness.zig");
 
-/// The grammar-derived corpus plus cases mined from other parsers' bug
-/// reports (tests/spec_cases/mined.cases); ids are unique across both.
-const source = @embedFile("spec_cases/json5_1.0.cases") ++ "\n" ++ @embedFile("spec_cases/mined.cases");
+/// The grammar-derived corpus, cases mined from other parsers' bug
+/// reports (tests/spec_cases/mined.cases) and BDFN rulings on ambiguous
+/// inputs (tests/spec_cases/rulings.cases); ids are unique across all three.
+const source = @embedFile("spec_cases/json5_1.0.cases") ++ "\n" ++ @embedFile("spec_cases/mined.cases") ++ "\n" ++ @embedFile("spec_cases/rulings.cases");
 
 pub const DecodeError = error{ BadEscape, BadLine, DuplicateId } || std.mem.Allocator.Error;
 

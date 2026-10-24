@@ -74,10 +74,21 @@ mutant_json5z_object_comma_skips_key() {
 	replace src/json5z.zig "',' => self.expect = .object_key_or_close," "',' => self.expect = .object_value,"
 }
 
+mutant_json5z_astral_identifiers() {
+	# Accept letters beyond the Basic Multilingual Plane in unquoted keys.
+	replace src/json5z.zig 'return cp <= max_bmp and inRanges(&tables.id_start, cp);' 'return inRanges(&tables.id_start, cp);'
+}
+
+mutant_json5z_crlf_counts_twice() {
+	# Count CR LF as two line breaks.
+	replace src/json5z.zig $'        if (lf_after_cr) return;\n' ''
+}
+
 mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited
 	mutant_ledger_forgets_case mutant_corpus_case_edited
 	mutant_json5z_raw_lf_in_string mutant_json5z_accepts_surrogates
-	mutant_json5z_literal_unchecked mutant_json5z_object_comma_skips_key)
+	mutant_json5z_literal_unchecked mutant_json5z_object_comma_skips_key
+	mutant_json5z_astral_identifiers mutant_json5z_crlf_counts_twice)
 
 for m in "${mutants[@]}"; do
 	dir="$work/$m"
