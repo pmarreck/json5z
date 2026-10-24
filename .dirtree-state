@@ -5,6 +5,7 @@ annotate=[
 	cj5.h = cj5 C parser: the degraded oracle, with a validate-only O(depth) mode
 	cli/json5z.c = C CLI: streams files/stdin through the C ABI; text, JSON Lines and quiet output
 	docs/plan_context/json5z.md = json5z decision, goals and oracle order (conformance suite, cj5 degraded oracle, fuzz/mutation)
+	docs/plan_context/spec_rulings.md = The six ambiguity rulings and their reasons
 	fuzz = Bounded differential fuzz campaign: json5z (wasm) vs reference json5 library
 	include/json5z.h = C ABI header: status codes, opaque streaming validator, pointer+length input
 	interim/cj5_modified = Interim library: cj5 with our grammar fixes and validate-only mode; deleted once the Zig validator replaces it
@@ -29,6 +30,7 @@ annotate=[
 	tests/spec_cases.zig = Runs both case files against json5z and upstream cj5 with exact ledgers
 	tests/spec_cases/json5_1.0.cases = 687 grammar-derived JSON5 cases, each citing its production; written without reading json5z
 	tests/spec_cases/mined.cases = 84 cases from other JSON5 parsers' bug reports, each with its source
+	tests/spec_cases/rulings.cases = BDFN rulings on inputs the JSON5 spec leaves ambiguous, as corpus cases
 	tests/upstream_cj5 = Degraded oracle: unmodified septag/cj5 5fe4821 (sha256-pinned) and a verdict-only judge wrapper
 	tools/gen-unicode-tables = Regenerates src/unicode_tables.zig from the nixpkgs Unicode Character Database
 ]
