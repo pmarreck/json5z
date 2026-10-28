@@ -5,6 +5,7 @@ annotate=[
 	bm = Timing campaign: json5z vs upstream cj5 through the performance-profile engine (profiling.json)
 	cj5.h = cj5 C parser: the degraded oracle, with a validate-only O(depth) mode
 	cli/json5z.c = C CLI: streams files/stdin through the C ABI; text, JSON Lines and quiet output
+	docs/plan_context/benchmark_cj5.md = Benchmark method, declared shapes and 2026-10-28 results: json5z vs upstream cj5
 	docs/plan_context/json5z.md = json5z decision, goals and oracle order (conformance suite, cj5 degraded oracle, fuzz/mutation)
 	docs/plan_context/spec_rulings.md = The six ambiguity rulings and their reasons
 	fuzz = Bounded differential fuzz campaign: json5z (wasm) vs reference json5 library
