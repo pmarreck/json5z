@@ -10,7 +10,8 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [x] Benchmark against cj5 under the performance-profiling contract: ./bm and ./mg through performance-profile, contract checks in ./test, results in docs/plan_context/benchmark_cj5.md (done 2026-10-28 10:45 EDT, 394fe3f, 4f3390a)
 - [ ] Beat cj5 on speed too: fast paths for string bodies, comment bodies and whitespace (bulk or vector scans), with the byte-at-a-time path as the equivalence oracle; cj5 with a presized token array is 2x faster on config and numbers and 6-7x on strings and comments (context: docs/plan_context/benchmark_cj5.md)
-- [ ] Re-measure ./bm after the settings work (the first campaign predates the per-digit number_range tracking)
+- [ ] Required before optimizing: re-run ./test, then ./bm and ./mg on current yolo; the first campaign predates the per-digit number_range tracking, so README and benchmark_cj5.md numbers are stale (context: docs/plan_context/benchmark_cj5.md)
+- [ ] BDFN: should CLI notes print in setting order (current) or sorted by first position?
 - [ ] BDFN: approve first benchmark baselines on this host after reviewing the UNBASELINED records (performance-profile accept)
 - [x] Core options and notes: line_separators and astral_identifiers as validator options; per-setting note count and first position, recorded only when the rule changed the result (done 2026-10-28 10:05 EDT, 56585a5)
 - [x] Every ruling overridable: escaped_literals, number_range (binary64 overflow, fuzzed against JavaScript's Number) and max_depth in the core (done 2026-10-28 10:40 EDT, dad50d5)

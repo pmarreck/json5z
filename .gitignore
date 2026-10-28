@@ -80,3 +80,6 @@ zig-out/
 # Agent worktrees (local checkouts of other branches)
 .claude/worktrees/
 zig-pkg/
+
+# session handoff docs (skill: handoff)
+HANDOFF*
