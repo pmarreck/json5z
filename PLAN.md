@@ -16,6 +16,10 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] README: lead with the accuracy comparison against the reference json5 library and upstream cj5 (done 2026-10-24 00:35 EDT)
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [ ] Benchmark against cj5 under the performance-profiling contract
+- [ ] Core options and notes: line_separators (break|inline) and astral_identifiers (reject|accept) as validator options; per-setting note count and first position, recorded only when the rule changed the result (context: docs/plan_context/settings_and_notes.md)
+- [ ] C ABI: json5z_options in, json5z_notes out, invalid option values rejected (context: docs/plan_context/settings_and_notes.md)
+- [ ] CLI settings layers: default, TOML file (tomlc17, XDG path or --config), JSON5Z_* environment, flags; later overrides earlier; --print-config (context: docs/plan_context/settings_and_notes.md)
+- [ ] CLI notes: one stderr line per setting per input naming value and source, JSON5Z_MUTE_INFO mutes stderr only, --json always carries notes (context: docs/plan_context/settings_and_notes.md)
 
 ## Upstream sync (requested by validate)
 
