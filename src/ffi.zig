@@ -19,6 +19,9 @@ const Location = extern struct {
 const Options = extern struct {
     line_separators: c_int,
     astral_identifiers: c_int,
+    escaped_literals: c_int,
+    number_range: c_int,
+    max_depth: usize,
 };
 
 /// `json5z_note` and `json5z_notes`.
@@ -30,6 +33,9 @@ const Note = extern struct {
 const Notes = extern struct {
     line_separators: Note,
     astral_identifiers: Note,
+    escaped_literals: Note,
+    number_range: Note,
+    max_depth: Note,
 };
 
 const Status = enum(c_int) {
@@ -57,6 +63,9 @@ fn options(from: ?*const Options) ?json5z.Options {
     return .{
         .line_separators = std.enums.fromInt(json5z.LineSeparators, o.line_separators) orelse return null,
         .astral_identifiers = std.enums.fromInt(json5z.AstralIdentifiers, o.astral_identifiers) orelse return null,
+        .escaped_literals = std.enums.fromInt(json5z.EscapedLiterals, o.escaped_literals) orelse return null,
+        .number_range = std.enums.fromInt(json5z.NumberRange, o.number_range) orelse return null,
+        .max_depth = o.max_depth,
     };
 }
 
@@ -72,6 +81,9 @@ fn report(r: json5z.Report, failure: ?*Location, notes: ?*Notes) c_int {
     if (notes) |out| out.* = .{
         .line_separators = cNote(r.notes.line_separators),
         .astral_identifiers = cNote(r.notes.astral_identifiers),
+        .escaped_literals = cNote(r.notes.escaped_literals),
+        .number_range = cNote(r.notes.number_range),
+        .max_depth = cNote(r.notes.max_depth),
     };
     return switch (r.verdict) {
         .valid => code(.valid),

@@ -19,6 +19,11 @@ fn note(count: usize, offset: usize, line: usize, column: usize) c.json5z_note {
 
 const no_note: c.json5z_note = .{ .count = 0, .first = location(0, 0, 0) };
 
+/// Options with the given fields set and the rest zero, i.e. default.
+fn opts(fields: anytype) c.json5z_options {
+    return std.mem.zeroInit(c.json5z_options, fields);
+}
+
 /// A validator under `options`, or a test failure.
 fn create(options: ?*const c.json5z_options) !*c.json5z_validator {
     var v: ?*c.json5z_validator = null;
@@ -47,7 +52,7 @@ test "options select the alternative readings and notes report each decision" {
     try testing.expectEqual(note(1, 1, 1, 2), notes.line_separators);
     try testing.expectEqual(no_note, notes.astral_identifiers);
 
-    const same_line: c.json5z_options = .{ .line_separators = c.JSON5Z_LINE_SEPARATORS_SAME_LINE, .astral_identifiers = c.JSON5Z_ASTRAL_IDENTIFIERS_REJECT };
+    const same_line = opts(.{ .line_separators = c.JSON5Z_LINE_SEPARATORS_SAME_LINE });
     try testing.expectEqual(@as(c_int, c.JSON5Z_INVALID), c.json5z_validate(doc, doc.len, &same_line, &where, &notes));
     try testing.expectEqual(location(4, 1, 3), where);
     try testing.expectEqual(note(1, 1, 1, 2), notes.line_separators);
@@ -55,10 +60,37 @@ test "options select the alternative readings and notes report each decision" {
     const key = "{\xF0\x90\x80\x80: 1}"; // U+10000, a letter beyond the BMP
     try testing.expectEqual(@as(c_int, c.JSON5Z_INVALID), c.json5z_validate(key, key.len, null, &where, &notes));
     try testing.expectEqual(note(1, 1, 1, 2), notes.astral_identifiers);
-    const accept: c.json5z_options = .{ .line_separators = c.JSON5Z_LINE_SEPARATORS_END_LINE, .astral_identifiers = c.JSON5Z_ASTRAL_IDENTIFIERS_ACCEPT };
+    const accept = opts(.{ .astral_identifiers = c.JSON5Z_ASTRAL_IDENTIFIERS_ACCEPT });
     try testing.expectEqual(@as(c_int, c.JSON5Z_VALID), c.json5z_validate(key, key.len, &accept, &where, &notes));
     try testing.expectEqual(note(1, 1, 1, 2), notes.astral_identifiers);
     try testing.expectEqual(no_note, notes.line_separators);
+}
+
+test "every ruling has an option, and each decision a note" {
+    var where = location(0, 0, 0);
+    var notes: c.json5z_notes = undefined;
+    var o = std.mem.zeroes(c.json5z_options);
+
+    const escaped = "n\\u0075ll";
+    try testing.expectEqual(@as(c_int, c.JSON5Z_INVALID), c.json5z_validate(escaped, escaped.len, &o, &where, &notes));
+    try testing.expectEqual(note(1, 1, 1, 2), notes.escaped_literals);
+    o.escaped_literals = c.JSON5Z_ESCAPED_LITERALS_ACCEPT;
+    try testing.expectEqual(@as(c_int, c.JSON5Z_VALID), c.json5z_validate(escaped, escaped.len, &o, &where, &notes));
+    try testing.expectEqual(note(1, 1, 1, 2), notes.escaped_literals);
+
+    const huge = "[1, 1e400]";
+    try testing.expectEqual(@as(c_int, c.JSON5Z_VALID), c.json5z_validate(huge, huge.len, &o, &where, &notes));
+    try testing.expectEqual(note(1, 4, 1, 5), notes.number_range);
+    o.number_range = c.JSON5Z_NUMBER_RANGE_BINARY64;
+    try testing.expectEqual(@as(c_int, c.JSON5Z_INVALID), c.json5z_validate(huge, huge.len, &o, &where, &notes));
+    try testing.expectEqual(location(4, 1, 5), where);
+
+    const deep = "[[[]]]";
+    try testing.expectEqual(@as(c_int, c.JSON5Z_VALID), c.json5z_validate(deep, deep.len, &o, &where, &notes));
+    try testing.expectEqual(no_note, notes.max_depth);
+    o.max_depth = 2;
+    try testing.expectEqual(@as(c_int, c.JSON5Z_INVALID), c.json5z_validate(deep, deep.len, &o, &where, &notes));
+    try testing.expectEqual(note(1, 2, 1, 3), notes.max_depth);
 }
 
 test "zeroed or NULL options are the defaults" {
@@ -74,9 +106,11 @@ test "out-of-range option values are rejected before any input is judged" {
     var notes = std.mem.zeroes(c.json5z_notes);
     notes.line_separators.count = 7;
     for ([_]c.json5z_options{
-        .{ .line_separators = 2, .astral_identifiers = 0 },
-        .{ .line_separators = -1, .astral_identifiers = 0 },
-        .{ .line_separators = 0, .astral_identifiers = 2 },
+        opts(.{ .line_separators = 2 }),
+        opts(.{ .line_separators = -1 }),
+        opts(.{ .astral_identifiers = 2 }),
+        opts(.{ .escaped_literals = 2 }),
+        opts(.{ .number_range = -1 }),
     }) |bad| {
         try testing.expectEqual(@as(c_int, c.JSON5Z_INVALID_ARGUMENT), c.json5z_validate("]", 1, &bad, &where, &notes));
         var v: ?*c.json5z_validator = null;
@@ -111,7 +145,7 @@ test "embedded zero bytes are input, never terminators" {
 
 test "streaming in chunks matches a single call, notes included" {
     const doc = "{key: 'caf\xC3\xA9\xE2\x80\xA8', list: [1, 2, 3,], /* note */ \xF0\x9D\x90\x80: true,,}";
-    const accept: c.json5z_options = .{ .line_separators = c.JSON5Z_LINE_SEPARATORS_SAME_LINE, .astral_identifiers = c.JSON5Z_ASTRAL_IDENTIFIERS_ACCEPT };
+    const accept = opts(.{ .line_separators = c.JSON5Z_LINE_SEPARATORS_SAME_LINE, .astral_identifiers = c.JSON5Z_ASTRAL_IDENTIFIERS_ACCEPT });
     var whole_where = location(0, 0, 0);
     var whole_notes: c.json5z_notes = undefined;
     const whole = c.json5z_validate(doc, doc.len, &accept, &whole_where, &whole_notes);

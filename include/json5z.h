@@ -48,9 +48,22 @@ typedef enum json5z_astral_identifiers {
 	JSON5Z_ASTRAL_IDENTIFIERS_ACCEPT = 1, /* letters beyond U+FFFF, raw or as escaped pairs */
 } json5z_astral_identifiers;
 
+typedef enum json5z_escaped_literals {
+	JSON5Z_ESCAPED_LITERALS_REJECT = 0, /* null, true, false, Infinity, NaN spelled literally */
+	JSON5Z_ESCAPED_LITERALS_ACCEPT = 1, /* \uXXXX escapes may spell their letters */
+} json5z_escaped_literals;
+
+typedef enum json5z_number_range {
+	JSON5Z_NUMBER_RANGE_UNLIMITED = 0, /* any grammatical number */
+	JSON5Z_NUMBER_RANGE_BINARY64 = 1,  /* reject literals that round to infinity in IEEE 754 binary64 */
+} json5z_number_range;
+
 typedef struct json5z_options {
 	int line_separators;    /* a json5z_line_separators value */
 	int astral_identifiers; /* a json5z_astral_identifiers value */
+	int escaped_literals;   /* a json5z_escaped_literals value */
+	int number_range;       /* a json5z_number_range value */
+	size_t max_depth;       /* deepest nesting allowed; 0 for no limit */
 } json5z_options;
 
 /* How many times a setting decided the result (the other value would have
@@ -64,6 +77,9 @@ typedef struct json5z_note {
 typedef struct json5z_notes {
 	json5z_note line_separators;
 	json5z_note astral_identifiers;
+	json5z_note escaped_literals;
+	json5z_note number_range;
+	json5z_note max_depth;
 } json5z_notes;
 
 /* Streaming validator. Not thread-safe; use one per document and thread. */
