@@ -14,6 +14,24 @@ const Location = extern struct {
     column: usize,
 };
 
+/// `json5z_options`: plain ints, so an out-of-range value from C is
+/// representable and can be rejected instead of becoming an invalid enum.
+const Options = extern struct {
+    line_separators: c_int,
+    astral_identifiers: c_int,
+};
+
+/// `json5z_note` and `json5z_notes`.
+const Note = extern struct {
+    count: usize,
+    first: Location,
+};
+
+const Notes = extern struct {
+    line_separators: Note,
+    astral_identifiers: Note,
+};
+
 const Status = enum(c_int) {
     invalid_argument = -2,
     out_of_memory = -1,
@@ -33,11 +51,32 @@ fn slice(data: ?[*]const u8, length: usize) ?[]const u8 {
     return ptr[0..length];
 }
 
-fn report(verdict: json5z.Verdict, failure: ?*Location) c_int {
-    return switch (verdict) {
+/// Core options from C ones; NULL means the defaults, an out-of-range value null.
+fn options(from: ?*const Options) ?json5z.Options {
+    const o = from orelse return .{};
+    return .{
+        .line_separators = std.enums.fromInt(json5z.LineSeparators, o.line_separators) orelse return null,
+        .astral_identifiers = std.enums.fromInt(json5z.AstralIdentifiers, o.astral_identifiers) orelse return null,
+    };
+}
+
+fn location(p: anytype) Location {
+    return .{ .offset = p.offset, .line = p.line, .column = p.column };
+}
+
+fn cNote(n: json5z.Note) Note {
+    return .{ .count = n.count, .first = location(n.first) };
+}
+
+fn report(r: json5z.Report, failure: ?*Location, notes: ?*Notes) c_int {
+    if (notes) |out| out.* = .{
+        .line_separators = cNote(r.notes.line_separators),
+        .astral_identifiers = cNote(r.notes.astral_identifiers),
+    };
+    return switch (r.verdict) {
         .valid => code(.valid),
         .invalid => |f| blk: {
-            if (failure) |out| out.* = .{ .offset = f.offset, .line = f.line, .column = f.column };
+            if (failure) |out| out.* = location(f);
             break :blk code(switch (f.kind) {
                 .invalid => .invalid,
                 .incomplete => .incomplete,
@@ -46,10 +85,13 @@ fn report(verdict: json5z.Verdict, failure: ?*Location) c_int {
     };
 }
 
-export fn json5z_validator_new() ?*json5z.Validator {
-    const v = allocator.create(json5z.Validator) catch return null;
-    v.* = .init(allocator);
-    return v;
+export fn json5z_validator_create(from: ?*const Options, out: ?*?*json5z.Validator) c_int {
+    const dest = out orelse return code(.invalid_argument);
+    const opts = options(from) orelse return code(.invalid_argument);
+    const v = allocator.create(json5z.Validator) catch return code(.out_of_memory);
+    v.* = .initOptions(allocator, opts);
+    dest.* = v;
+    return code(.valid);
 }
 
 export fn json5z_validator_free(validator: ?*json5z.Validator) void {
@@ -64,12 +106,14 @@ export fn json5z_validator_feed(validator: *json5z.Validator, data: ?[*]const u8
     return code(.valid);
 }
 
-export fn json5z_validator_finish(validator: *json5z.Validator, failure: ?*Location) c_int {
-    return report(validator.finish(), failure);
+export fn json5z_validator_finish(validator: *json5z.Validator, failure: ?*Location, notes: ?*Notes) c_int {
+    const verdict = validator.finish();
+    return report(.{ .verdict = verdict, .notes = validator.notes }, failure, notes);
 }
 
-export fn json5z_validate(data: ?[*]const u8, length: usize, failure: ?*Location) c_int {
+export fn json5z_validate(data: ?[*]const u8, length: usize, from: ?*const Options, failure: ?*Location, notes: ?*Notes) c_int {
     const bytes = slice(data, length) orelse return code(.invalid_argument);
-    const verdict = json5z.validate(allocator, bytes) catch return code(.out_of_memory);
-    return report(verdict, failure);
+    const opts = options(from) orelse return code(.invalid_argument);
+    const r = json5z.check(allocator, bytes, opts) catch return code(.out_of_memory);
+    return report(r, failure, notes);
 }

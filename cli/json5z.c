@@ -103,15 +103,15 @@ static void report(const options* opt, const char* name, int status, const json5
 static int validate_stream(FILE* in, json5z_location* at)
 {
 	static uint8_t buffer[64 * 1024];
-	json5z_validator* v = json5z_validator_new();
-	if (!v) return JSON5Z_OUT_OF_MEMORY;
-	int status = JSON5Z_VALID;
+	json5z_validator* v = NULL;
+	int status = json5z_validator_create(NULL, &v);
+	if (status != JSON5Z_VALID) return status;
 	size_t n;
 	while ((n = fread(buffer, 1, sizeof buffer, in)) > 0) {
 		status = json5z_validator_feed(v, buffer, n);
 		if (status != JSON5Z_VALID) break;
 	}
-	if (status == JSON5Z_VALID) status = ferror(in) ? -3 : json5z_validator_finish(v, at);
+	if (status == JSON5Z_VALID) status = ferror(in) ? -3 : json5z_validator_finish(v, at, NULL);
 	json5z_validator_free(v);
 	return status;
 }
