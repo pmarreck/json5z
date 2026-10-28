@@ -1,0 +1,40 @@
+#!/usr/bin/env bash
+# Timing and memory campaign: json5z against unmodified upstream cj5, through
+# the shared performance-profile engine (cases in profiling.json). Run inside
+# `nix develop`, which provides the pinned engine.
+#
+# History is written outside this repository: PERFORMANCE_HISTORY_URL if set,
+# else ${XDG_STATE_HOME:-$HOME/.local/state}/performance-history, which must
+# already exist. A first run on new hardware is UNBASELINED (exit 3) until an
+# owner approves an observation with `performance-profile accept`.
+#
+# Usage: ./bm [performance-profile run options, e.g. --case NAME --seed N]
+set -u
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$root" || exit 1
+
+if [ -n "${MUTE_DEBUG_STATUS:-}" ]; then
+	echo "bm: refusing to measure with MUTE_DEBUG_STATUS set; a debug build must stay visible" >&2
+	exit 2
+fi
+if ! command -v performance-profile >/dev/null; then
+	echo "bm: performance-profile is not on PATH; run inside nix develop" >&2
+	exit 1
+fi
+zig build bench || exit 1
+about="$(zig-out/bench/json5z-bench about)" || exit 1
+if [ "$about" != '{"build_mode":"ReleaseFast","c_optimized":true}' ]; then
+	echo "bm: zig-out/bench/json5z-bench is not an optimized build: $about" >&2
+	exit 1
+fi
+if [ -z "${PERFORMANCE_HISTORY_URL:-}" ]; then
+	history="${XDG_STATE_HOME:-$HOME/.local/state}/performance-history"
+	if [ ! -d "$history" ]; then
+		echo "bm: history directory $history does not exist; create it or set PERFORMANCE_HISTORY_URL" >&2
+		exit 1
+	fi
+	export PERFORMANCE_HISTORY_URL="file://$history"
+fi
+# Seed 1 unless the caller passes another; a later --seed overrides it.
+exec performance-profile run --mode bm --seed 1 "$@"

@@ -181,4 +181,38 @@ pub fn build(b: *std.Build) void {
     wasm.rdynamic = true;
     const fuzz_wasm = b.step("fuzz-wasm", "Build the json5z WebAssembly module for ./fuzz");
     fuzz_wasm.dependOn(&b.addInstallArtifact(wasm, .{ .dest_dir = .{ .override = .{ .custom = "fuzz" } } }).step);
+
+    addBenchmark(b, target);
+}
+
+/// Benchmark against upstream cj5 for ./bm (zig-out/bench/json5z-bench).
+/// Always ReleaseFast, whatever -Doptimize says: timing anything else
+/// measures the wrong program.
+fn addBenchmark(b: *std.Build, target: std.Build.ResolvedTarget) void {
+    const fast: std.builtin.OptimizeMode = .ReleaseFast;
+    const shim = b.addLibrary(.{
+        .linkage = .static,
+        .name = "json5z_bench_shim",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("tests/benchmark/json5z_shim.zig"),
+            .target = target,
+            .optimize = fast,
+            .imports = &.{.{ .name = "json5z", .module = b.createModule(.{
+                .root_source_file = b.path("src/json5z.zig"),
+                .target = target,
+                .optimize = fast,
+            }) }},
+        }),
+    });
+    const bench = b.addExecutable(.{
+        .name = "json5z-bench",
+        .root_module = b.createModule(.{ .target = target, .optimize = fast, .link_libc = true }),
+    });
+    bench.root_module.addCSourceFile(.{ .file = b.path("tests/benchmark/bench.c"), .flags = &.{ "-std=c11", "-Wall", "-Wextra", "-Werror" } });
+    bench.root_module.addCSourceFile(.{ .file = b.path("tests/benchmark/cj5_shim.c"), .flags = &.{"-std=c99"} });
+    bench.root_module.addIncludePath(b.path("tests/benchmark"));
+    bench.root_module.addIncludePath(b.path("tests/upstream_cj5"));
+    bench.root_module.linkLibrary(shim);
+    const step = b.step("bench", "Build the json5z vs upstream cj5 benchmark (always ReleaseFast)");
+    step.dependOn(&b.addInstallArtifact(bench, .{ .dest_dir = .{ .override = .{ .custom = "bench" } } }).step);
 }

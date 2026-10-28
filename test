@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Complete json5z test entry point: unit, conformance and differential tests,
 # the mutation control, a bounded fuzz campaign against the reference json5
-# library, and the Nix flake check. Accumulates failures; non-zero if any fail.
+# library, the benchmark's untimed contract checks (the timing campaign is
+# ./bm) and the Nix flake check. Accumulates failures; non-zero if any fail.
 set -u
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -21,6 +22,7 @@ run() {
 run nix develop -c zig build test --summary all
 run nix develop -c zig build
 run nix develop -c tests/cli/cli.bash
+run nix develop -c tests/benchmark/contract.bash
 run nix develop -c ./mutate
 run nix develop -c ./fuzz 1 20000
 run nix develop -c node tests/fuzz/spec_reference.mjs tests/ledgers/spec_reference_json5.txt tests/spec_cases/json5_1.0.cases tests/spec_cases/mined.cases tests/spec_cases/rulings.cases

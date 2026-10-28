@@ -4,12 +4,14 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Become json5z (spec-accurate JSON5 validation)
 
-- [x] Run the spec corpus against json5z (0 disagreements), upstream cj5 (304) and the reference json5 library (1, a Unicode 10 table gap), each with an exact ledger (done 2026-10-23 14:42 EDT)
 - [x] Record the BDFN rulings on the six spec ambiguities as cases (tests/spec_cases/rulings.cases) and document them; astral raw identifier characters become rejected, matching the escaped-surrogate-pair ruling (context: docs/plan_context/spec_rulings.md) (done 2026-10-24 00:35 EDT)
 - [x] Report line and column (1-based, code points, JSON5 line terminators) with every failure: Zig core, C ABI, CLI text and --json (done 2026-10-24 00:35 EDT)
 - [x] README: lead with the accuracy comparison against the reference json5 library and upstream cj5 (done 2026-10-24 00:35 EDT)
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
-- [ ] Benchmark against cj5 under the performance-profiling contract
+- [x] Benchmark against cj5 under the performance-profiling contract: ./bm and ./mg through performance-profile, contract checks in ./test, results in docs/plan_context/benchmark_cj5.md (done 2026-10-28 10:45 EDT, 394fe3f, 4f3390a)
+- [ ] Beat cj5 on speed too: fast paths for string bodies, comment bodies and whitespace (bulk or vector scans), with the byte-at-a-time path as the equivalence oracle; cj5 with a presized token array is 2x faster on config and numbers and 6-7x on strings and comments (context: docs/plan_context/benchmark_cj5.md)
+- [ ] Re-measure ./bm after the settings work (the first campaign predates the per-digit number_range tracking)
+- [ ] BDFN: approve first benchmark baselines on this host after reviewing the UNBASELINED records (performance-profile accept)
 - [x] Core options and notes: line_separators and astral_identifiers as validator options; per-setting note count and first position, recorded only when the rule changed the result (done 2026-10-28 10:05 EDT, 56585a5)
 - [x] Every ruling overridable: escaped_literals, number_range (binary64 overflow, fuzzed against JavaScript's Number) and max_depth in the core (done 2026-10-28 10:40 EDT, dad50d5)
 - [x] C ABI: json5z_options in, json5z_notes out, invalid option values rejected (done 2026-10-28 10:18 EDT, 1a7b44f)

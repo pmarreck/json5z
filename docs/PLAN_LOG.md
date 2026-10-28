@@ -37,3 +37,4 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Become json5z (spec-accurate JSON5 validation)] Ask validate to move from the interim cj5 module to the json5z module, with expected verdict changes (done 2026-10-23 13:45 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] Spec-derived case corpus: 687 cases from the JSON5 1.0 and ES5.1 grammars, written by an agent that never read json5z's source (context: docs/plan_context/spec_cases.md) (done 2026-10-23 14:42 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] Mine other JSON5 parsers for inputs they mishandle or never test: 84 sourced cases in tests/spec_cases/mined.cases (done 2026-10-23 14:42 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Run the spec corpus against json5z (0 disagreements), upstream cj5 (304) and the reference json5 library (1, a Unicode 10 table gap), each with an exact ledger (done 2026-10-23 14:42 EDT)

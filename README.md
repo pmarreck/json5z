@@ -91,6 +91,22 @@ int status = json5z_validate(data, length, NULL /* default options */, &where, &
 `json5z_options` selects the readings above; a zeroed struct is the default. From Zig, depend on this package
 and import the `json5z` module (`json5z.validate`, `json5z.check` for options and notes, or `json5z.Validator`).
 
+## Performance
+
+Against unmodified upstream cj5 on 32 MiB documents (one core of an AMD
+Ryzen Threadripper 3990X; method and full results in
+[the benchmark notes](docs/plan_context/benchmark_cj5.md)), json5z validates
+at 133 to 215 MB/s and needs 136 bytes for any flat document, whatever its
+size. cj5 needs a 32-byte token for every value, up to 264 MiB for these
+documents. Given a token array of exactly the right size, cj5 is currently
+faster: 2x on config and number workloads and 6 to 7x on string and comment
+workloads, whose bodies it skips without checking UTF-8 or escapes. A caller
+that must count tokens first, then allocate and parse, is slower than json5z
+on the config, nested and number workloads. cj5's time grows with the square
+of nesting depth: 64 KiB of nested arrays takes it 1.1 s and json5z 0.5 ms.
+Closing the remaining gap is open work in [PLAN.md](PLAN.md). Run `./bm` and
+`./mg` to measure.
+
 ## How correctness is checked
 
 The [JSON5 1.0 specification](https://spec.json5.org/) is the source of
