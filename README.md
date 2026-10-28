@@ -51,16 +51,45 @@ terminators.
 
 See `json5z --help`.
 
+Where the specification leaves a reading open, json5z follows a documented
+ruling by default ([the rulings](docs/plan_context/spec_rulings.md)) and
+lets you choose the other reading, from a TOML settings file
+(`$XDG_CONFIG_HOME/json5z/config.toml` or `--config PATH`), environment
+variables or flags, each overriding the one before:
+
+| Setting | Values (default first) |
+|---|---|
+| `line_separators` | `end-line`, `same-line`: whether U+2028 and U+2029 end a line in reported positions |
+| `astral_identifiers` | `reject`, `accept`: letters beyond U+FFFF in unquoted keys |
+| `escaped_literals` | `reject`, `accept`: `\uXXXX` escapes spelling `null`, `true`, `false`, `Infinity` or `NaN` |
+| `number_range` | `unlimited`, `binary64`: whether numbers that round to infinity in IEEE 754 binary64 fail |
+| `max_depth` | `unlimited`, or a positive integer: the deepest nesting allowed |
+
+A setting is an input to every result it changes, so json5z says so. When a
+setting decided a verdict or a reported position, a note on stderr names the
+setting, its value and where the value came from:
+
+```text
+✗ data.json5: invalid at line 1, column 13 (byte 12)
+json5z: note: data.json5: a number at line 1, column 13 (byte 12) rounds to infinity in binary64 and was rejected; number_range=binary64 (from JSON5Z_NUMBER_RANGE). Mute with JSON5Z_MUTE_INFO=1.
+```
+
+`--json` output always includes the notes, muted or not, and
+`json5z --print-config` prints the settings in effect, with their sources,
+as a commented TOML file ([design](docs/plan_context/settings_and_notes.md)).
+
 From C, include `json5z.h` and link `libjson5z.a`:
 
 ```c
 json5z_location where; /* offset, line, column */
-int status = json5z_validate(data, length, &where); /* JSON5Z_VALID, ... */
+json5z_notes notes;    /* which settings decided the result */
+int status = json5z_validate(data, length, NULL /* default options */, &where, &notes);
 ```
 
-`json5z_validator_new`, `json5z_validator_feed` and `json5z_validator_finish`
-validate a document in chunks of any size. From Zig, depend on this package
-and import the `json5z` module (`json5z.validate` or `json5z.Validator`).
+`json5z_validator_create`, `json5z_validator_feed` and
+`json5z_validator_finish` validate a document in chunks of any size.
+`json5z_options` selects the readings above; a zeroed struct is the default. From Zig, depend on this package
+and import the `json5z` module (`json5z.validate`, `json5z.check` for options and notes, or `json5z.Validator`).
 
 ## How correctness is checked
 

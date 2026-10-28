@@ -20,6 +20,33 @@
 				mkdir -p $out
 				tar xzf $src -C $out --strip-components=1
 			'';
+			# Zig package dependencies (build.zig.zon), fetched once in a
+			# fixed-output derivation so sandboxed builds need no network. Zig
+			# 0.16 unpacks packages into ./zig-pkg, which is the output.
+			# After changing build.zig.zon, set this to "" and rebuild to learn
+			# the new hash.
+			zigDepsHash = "sha256-m61evDoe3dBqMt6QMWsR75bFqVYhuJhNGsuMq6pX8Sw=";
+			zigDeps = pkgs: pkgs.stdenvNoCC.mkDerivation {
+				name = "json5z-zig-deps";
+				src = pkgs.lib.fileset.toSource {
+					root = ./.;
+					fileset = pkgs.lib.fileset.unions [ ./build.zig ./build.zig.zon ];
+				};
+				nativeBuildInputs = [ pkgs.zig pkgs.cacert ];
+				outputHashMode = "recursive";
+				outputHashAlgo = "sha256";
+				outputHash = zigDepsHash;
+				dontConfigure = true;
+				buildPhase = ''
+					export HOME="$TMPDIR"
+					export ZIG_GLOBAL_CACHE_DIR="$TMPDIR/zig-global"
+					export ZIG_LOCAL_CACHE_DIR="$TMPDIR/zig-local"
+					export SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt
+					zig build --fetch=all
+				'';
+				installPhase = "cp -r zig-pkg $out";
+				dontFixup = true;
+			};
 		in {
 			devShells = forAllSystems (system:
 				let
@@ -60,6 +87,8 @@
 							export ZIG_LOCAL_CACHE_DIR="$TMPDIR/zig-local"
 							# Nix's stdenv flags can break Zig's own linker invocation.
 							unset NIX_CFLAGS_COMPILE NIX_LDFLAGS
+							cp -r ${zigDeps pkgs} zig-pkg
+							chmod -R u+w zig-pkg
 							zig build test -Dtarget=${zigTarget}
 						'';
 						installPhase = "touch $out";

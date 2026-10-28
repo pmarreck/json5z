@@ -2,6 +2,12 @@
     .name = .json5z,
     .fingerprint = 0x95324c6b76b6e0f4,
     .version = "0.1.0",
+    .dependencies = .{
+        .tomlc17 = .{
+            .url = "https://github.com/cktan/tomlc17/archive/refs/tags/R20260501.tar.gz",
+            .hash = "N-V-__8AADuuAgBZD0XWA5ai2VA5idZ00oydDIzijA-jK9vz",
+        },
+    },
     .minimum_zig_version = "0.16.0",
     .paths = .{
         "build.zig",

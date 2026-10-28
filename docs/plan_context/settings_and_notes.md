@@ -70,9 +70,13 @@ The CLI prints one line per setting per input on stderr, after the verdict
 line, naming the value and its source, for example:
 
 ```text
-json5z: note: config.json5: U+2028 LINE SEPARATOR at line 2, column 9 (byte 41) ended a line (line_separators=end-line, default); 3 more before the failure. Mute with JSON5Z_MUTE_INFO=1.
+json5z: note: config.json5: 1 line separator (U+2028/U+2029) before the failure ended a line, first at line 1, column 2 (byte 1); line_separators=end-line (default). Mute with JSON5Z_MUTE_INFO=1.
 ```
 
-`JSON5Z_MUTE_INFO` (any non-empty value) mutes the stderr notes only. `--json`
-output always carries a `notes` array, so a pipeline that discards stderr, or
-a muted run, still records which settings shaped each verdict.
+`JSON5Z_MUTE_INFO` (any non-empty value) mutes the stderr notes only, and
+`--quiet` prints none. `--json` output carries the notes in each line's
+`notes` array instead of on stderr, always, so a pipeline that discards
+stderr, or a muted run, still records which settings shaped each verdict.
+Each entry names the setting, its value, its source (`default`, `file`,
+`environment` or `flag`, with `from` naming the file, variable or flag), the
+count and the first position.

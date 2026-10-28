@@ -35,3 +35,5 @@ Completed PLAN.md items retired by plan-retire, oldest retirement first.
 - [x] [Become json5z (spec-accurate JSON5 validation)] Differential fuzz against the reference JavaScript json5 library (npm 2.2.3) plus random chunk-split invariance; 20k cases in ./test, 0 disagreements, bites on a planted bug (done 2026-10-23 13:02 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] C FFI (include/json5z.h, pointer+length, streaming) plus a C CLI through it, with ABI and CLI contract tests (done 2026-10-23 13:40 EDT)
 - [x] [Become json5z (spec-accurate JSON5 validation)] Ask validate to move from the interim cj5 module to the json5z module, with expected verdict changes (done 2026-10-23 13:45 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Spec-derived case corpus: 687 cases from the JSON5 1.0 and ES5.1 grammars, written by an agent that never read json5z's source (context: docs/plan_context/spec_cases.md) (done 2026-10-23 14:42 EDT)
+- [x] [Become json5z (spec-accurate JSON5 validation)] Mine other JSON5 parsers for inputs they mishandle or never test: 84 sourced cases in tests/spec_cases/mined.cases (done 2026-10-23 14:42 EDT)

@@ -47,6 +47,11 @@ pub fn build(b: *std.Build) void {
     });
     cli.root_module.addIncludePath(b.path("include"));
     cli.root_module.linkLibrary(json5z_lib);
+    // TOML parser for the settings file (MIT, CK Tan); the CLI's only
+    // third-party code, pinned in build.zig.zon.
+    const tomlc17 = b.dependency("tomlc17", .{});
+    cli.root_module.addCSourceFile(.{ .file = tomlc17.path("src/tomlc17.c"), .flags = &.{"-std=c11"} });
+    cli.root_module.addIncludePath(tomlc17.path("src"));
     b.installArtifact(cli);
 
     // Build the interim C library as an artifact
