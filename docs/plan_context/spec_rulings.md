@@ -16,6 +16,9 @@ upstream cj5 and the reference JavaScript library like the rest of the corpus.
 | 5 | Huge or very precise numbers, `1e400`, 30-digit integers | accept | They are grammatical. Spec §10 lets an implementation limit range and precision but does not require it; json5z checks grammar and builds no values. |
 | 6 | Deep nesting | accept | No depth limit beyond memory, at one bit per open container. Unit tests cover 100,000 levels. |
 
+Each ruling is a default that can be overridden; see
+[settings_and_notes.md](settings_and_notes.md).
+
 ## Differences from the reference library
 
 The reference JavaScript library (npm `json5` 2.2.3) reads source by code

@@ -95,12 +95,29 @@ mutant_json5z_crlf_counts_twice() {
 	replace src/json5z.zig $'        if (lf_after_cr) return;\n' ''
 }
 
+mutant_json5z_depth_off_by_one() {
+	# Allow one level beyond max_depth.
+	replace src/json5z.zig 'self.depth == self.options.max_depth' 'self.depth > self.options.max_depth'
+}
+
+mutant_json5z_escaped_letter_unchecked() {
+	# Accept any escaped letter inside a literal under escaped_literals = accept.
+	replace src/json5z.zig $'                        if (named != self.word[self.word_index]) return self.fail();\n' ''
+}
+
+mutant_json5z_overflow_ignores_digits() {
+	# Judge binary64 overflow by order of magnitude alone, ignoring the digits.
+	replace src/json5z.zig 'return order > limit or (order == limit and m.order == .at_least);' 'return order > limit;'
+}
+
 mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited
 	mutant_ledger_forgets_case mutant_corpus_case_edited
 	mutant_json5z_raw_lf_in_string mutant_json5z_accepts_surrogates
 	mutant_json5z_literal_unchecked mutant_json5z_object_comma_skips_key
 	mutant_json5z_astral_identifiers mutant_json5z_crlf_counts_twice
-	mutant_json5z_unpaired_high_surrogate mutant_json5z_line_separator_note_kept)
+	mutant_json5z_unpaired_high_surrogate mutant_json5z_line_separator_note_kept
+	mutant_json5z_depth_off_by_one mutant_json5z_escaped_letter_unchecked
+	mutant_json5z_overflow_ignores_digits)
 
 for m in "${mutants[@]}"; do
 	dir="$work/$m"

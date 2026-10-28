@@ -9,15 +9,17 @@ and where the value came from.
 
 ## Settings
 
-Only rulings that a real implementation or common tooling reads differently
-get a setting. The reference library (npm json5 2.2.3) disagrees with ruling 3
-alone, and editors disagree with the line-separator ruling. The other rulings
-have no known dissenting implementation and stay fixed until one appears.
+Every ruling can be overridden (BDFN, 2026-10-28). Rulings that rest on the
+same reasoning share a setting: 1 and 2 (escaped literals), 3 and 4
+(characters beyond U+FFFF in keys).
 
 | Setting | Values (default first) | Affects |
 |---|---|---|
 | `line_separators` | `end-line`, `same-line` | Positions: whether U+2028 and U+2029 end a line in failure reports, or count as one column on the same line. The grammar treats them as line terminators either way. |
-| `astral_identifiers` | `reject`, `accept` | Verdicts: whether unquoted keys may contain letters beyond U+FFFF, raw or as an escaped surrogate pair (rulings 3 and 4 together). |
+| `astral_identifiers` | `reject`, `accept` | Verdicts: whether unquoted keys may contain letters beyond U+FFFF, raw or as an escaped surrogate pair (rulings 3 and 4). |
+| `escaped_literals` | `reject`, `accept` | Verdicts: whether a `\uXXXX` escape may spell a letter of `null`, `true`, `false`, `Infinity` or `NaN` (rulings 1 and 2). |
+| `number_range` | `unlimited`, `binary64` | Verdicts: whether a number literal that rounds to infinity in IEEE 754 binary64 (magnitude at least 2^1024 - 2^970) is rejected (ruling 5; JSON5 section 10 allows the limit). Precision is never limited, a literal that rounds to zero is in range, and `Infinity` is a literal, not an overflow. A rejected literal is located at its first character, since no single character is at fault. |
+| `max_depth` | `unlimited`, or a positive integer | Verdicts: the deepest nesting allowed, counting each open array or object (ruling 6). |
 
 Columns always count code points (BDFN ruling, 2026-10-28).
 
@@ -29,9 +31,11 @@ Sources, each overriding the one before:
    `--config PATH` names a different file. A missing default file is not an
    error; an unreadable or malformed file, or an unknown key or value, is a
    usage error (exit 2), so a typo never silently changes a verdict.
-3. Environment: `JSON5Z_LINE_SEPARATORS`, `JSON5Z_ASTRAL_IDENTIFIERS`.
-4. Flags: `--line-separators=VALUE`, `--astral-identifiers=VALUE`; a later
-   flag overrides an earlier one.
+3. Environment: `JSON5Z_` and the setting's name in capitals, for example
+   `JSON5Z_NUMBER_RANGE`.
+4. Flags: `--` and the setting's name with hyphens, for example
+   `--number-range=binary64` or `--number-range binary64`; a later flag
+   overrides an earlier one.
 
 `--print-config` prints the effective settings as a commented TOML file, each
 with its source, which doubles as a template.
@@ -53,7 +57,14 @@ and the position of the first. A rule changes the result when:
   while `accept` takes it as the first half of a pair and fails later, if at
   all. A character beyond U+FFFF that is not an identifier character, or a
   lone escaped low surrogate, fails at the same place under either value and
-  makes no note.
+  makes no note;
+- `escaped_literals`: a backslash where an escape could spell a literal's
+  letter, at the start of a value, after a sign or inside a literal. `reject`
+  fails there; `accept` reads the escape, so the result differs either way;
+- `number_range`: a literal that rounds to infinity in binary64, rejected
+  under `binary64` and accepted under `unlimited`;
+- `max_depth`: an opening bracket beyond the limit. Without a limit nothing
+  is noted, because no single other value would differ.
 
 The CLI prints one line per setting per input on stderr, after the verdict
 line, naming the value and its source, for example:

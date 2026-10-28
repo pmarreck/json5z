@@ -34,6 +34,11 @@ pub const Error = std.mem.Allocator.Error;
 pub const Options = struct {
     line_separators: LineSeparators = .end_line,
     astral_identifiers: AstralIdentifiers = .reject,
+    escaped_literals: EscapedLiterals = .reject,
+    number_range: NumberRange = .unlimited,
+    /// Deepest nesting allowed, counting each open array or object; 0 sets
+    /// no limit beyond memory (ruling 6).
+    max_depth: usize = 0,
 };
 
 /// Whether U+2028 and U+2029 end a line in reported positions. The grammar
@@ -43,6 +48,15 @@ pub const LineSeparators = enum { end_line, same_line };
 /// Whether unquoted keys may contain letters beyond U+FFFF, raw or as an
 /// escaped surrogate pair (rulings 3 and 4).
 pub const AstralIdentifiers = enum { reject, accept };
+
+/// Whether a Unicode escape may spell a letter of `null`, `true`, `false`,
+/// `Infinity` or `NaN` (rulings 1 and 2).
+pub const EscapedLiterals = enum { reject, accept };
+
+/// Whether a number literal must be finite in IEEE 754 binary64 (ruling 5;
+/// JSON5 section 10 allows the limit). Precision is never limited, and a
+/// literal that rounds to zero is not out of range.
+pub const NumberRange = enum { unlimited, binary64 };
 
 pub const Position = struct {
     offset: usize = 0,
@@ -62,6 +76,9 @@ pub const Note = struct {
 pub const Notes = struct {
     line_separators: Note = .{},
     astral_identifiers: Note = .{},
+    escaped_literals: Note = .{},
+    number_range: Note = .{},
+    max_depth: Note = .{},
 };
 
 pub const Report = struct {
@@ -118,6 +135,77 @@ const Lex = enum {
     ident_hex,
     /// After an escaped high surrogate: an escaped low surrogate must follow.
     ident_pair_backslash,
+    /// A Unicode escape spelling a literal's letter (escaped_literals).
+    literal_backslash,
+    literal_hex,
+};
+
+/// Where a literal escape stands, which decides the letters it may name.
+const LiteralEscape = enum { value_start, after_sign, inside };
+
+/// Streaming test of whether a number literal rounds to infinity in IEEE 754
+/// binary64, in constant memory: its significant digits are compared with
+/// those of the smallest such magnitude, 2^1024 - 2^970, and its decimal
+/// order of magnitude is tracked through the point and exponent, saturating.
+const Magnitude = struct {
+    start: Position = .{},
+    hex: bool = false,
+    /// A nonzero digit has been seen.
+    significant: bool = false,
+    in_fraction: bool = false,
+    /// Significant digits before the point (all of them for hex).
+    whole: i64 = 0,
+    /// Zeros after the point before the first significant digit.
+    lead: i64 = 0,
+    order: Order = .equal,
+    compared: usize = 0,
+    exponent: i64 = 0,
+    exponent_negative: bool = false,
+
+    const Order = enum { less, equal, at_least };
+    /// Far beyond any order that matters, small enough never to overflow.
+    const saturate: i64 = 1 << 40;
+    /// 2^1024 - 2^970: 309 decimal digits, or FFFFFFFFFFFFFC then 242 zero
+    /// hex digits (equality with that prefix already means at least).
+    const decimal_limit = "179769313486231580793728971405303415079934132710037826936173778980444968292764750946649017977587207096330286416692887910946555547851940402630657488671505820681908902000708383676273854845817711531764475730270069855571366959622842914819860834936475292719074168444365510704342711559699508093042880177904174497792";
+    const hex_limit = [_]u8{ 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 12 };
+
+    fn begin(at: Position) Magnitude {
+        return .{ .start = at };
+    }
+
+    fn digit(m: *Magnitude, d: u8) void {
+        if (!m.significant) {
+            if (d == 0) {
+                if (m.in_fraction) m.lead = @min(m.lead + 1, saturate);
+                return;
+            }
+            m.significant = true;
+        }
+        if (!m.in_fraction) m.whole = @min(m.whole + 1, saturate);
+        if (m.order != .equal) return;
+        const limit = if (m.hex) hex_limit[m.compared] else decimal_limit[m.compared] - '0';
+        if (d < limit) {
+            m.order = .less;
+        } else if (d > limit) {
+            m.order = .at_least;
+        } else {
+            m.compared += 1;
+            if (m.compared == if (m.hex) hex_limit.len else decimal_limit.len) m.order = .at_least;
+        }
+    }
+
+    fn exponentDigit(m: *Magnitude, d: u8) void {
+        m.exponent = @min(m.exponent * 10 + d, saturate);
+    }
+
+    fn overflows(m: *const Magnitude) bool {
+        if (!m.significant) return false;
+        const limit: i64 = if (m.hex) 256 else 309;
+        const scale = if (m.exponent_negative) -m.exponent else m.exponent;
+        const order = (if (m.whole > 0) m.whole else -m.lead) + scale;
+        return order > limit or (order == limit and m.order == .at_least);
+    }
 };
 
 const Container = enum(u1) { array, object };
@@ -157,6 +245,8 @@ pub const Validator = struct {
     escape_at: Position = .{},
     /// The escaped high surrogate awaiting its low half, or 0.
     pending_high: u21 = 0,
+    literal_escape: LiteralEscape = .inside,
+    magnitude: Magnitude = .{},
     word: []const u8 = "",
     word_index: usize = 0,
 
@@ -199,7 +289,7 @@ pub const Validator = struct {
         if (self.utf8_need != 0) return incomplete;
         switch (self.lex) {
             .none, .line_comment => {},
-            .number_zero, .number_int, .number_int_dot, .number_frac, .number_exp_digits, .number_hex => self.valueDone(),
+            .number_zero, .number_int, .number_int_dot, .number_frac, .number_exp_digits, .number_hex => if (!self.endNumber()) return .{ .invalid = self.failure.? },
             .word => if (self.word_index == self.word.len) self.valueDone() else return incomplete,
             else => return incomplete,
         }
@@ -269,6 +359,43 @@ pub const Validator = struct {
 
     fn fail(self: *Validator) void {
         self.failAt(self.cp_start);
+    }
+
+    fn failAtPosition(self: *Validator, at: Position) void {
+        self.failure = .{ .kind = .invalid, .offset = at.offset, .line = at.line, .column = at.column };
+    }
+
+    /// A backslash where an escape could spell a literal's letter. Either
+    /// value of escaped_literals decides the result here, so it is noted.
+    fn beginLiteralEscape(self: *Validator, where: LiteralEscape) void {
+        self.noteHere(&self.notes.escaped_literals);
+        if (self.options.escaped_literals == .reject) return self.fail();
+        self.literal_escape = where;
+        self.lex = .literal_backslash;
+    }
+
+    /// A number literal ended; number_range may reject it, located at its
+    /// start because no single character is at fault. Returns false then.
+    fn endNumber(self: *Validator) bool {
+        if (self.magnitude.overflows()) {
+            noteAt(&self.notes.number_range, self.magnitude.start);
+            if (self.options.number_range == .binary64) {
+                self.failAtPosition(self.magnitude.start);
+                return false;
+            }
+        }
+        self.endValueToken();
+        return true;
+    }
+
+    fn numberDigit(self: *Validator, cp: u21, next: Lex) void {
+        self.magnitude.digit(@intCast(cp - '0'));
+        self.lex = next;
+    }
+
+    fn numberPoint(self: *Validator, next: Lex) void {
+        self.magnitude.in_fraction = true;
+        self.lex = next;
     }
 
     fn here(self: *const Validator) Position {
@@ -363,66 +490,107 @@ pub const Validator = struct {
                 self.lex = .string;
                 if (cp == '\n') return;
             },
-            .number_sign => {
-                self.lex = switch (cp) {
-                    '0' => .number_zero,
-                    '1'...'9' => .number_int,
-                    '.' => .number_leading_dot,
-                    'I' => self.beginWord("Infinity"),
-                    'N' => self.beginWord("NaN"),
-                    else => return self.fail(),
-                };
-                return;
+            .number_sign => return switch (cp) {
+                '0' => self.setLex(.number_zero),
+                '1'...'9' => self.numberDigit(cp, .number_int),
+                '.' => self.numberPoint(.number_leading_dot),
+                'I' => self.lex = self.beginWord("Infinity"),
+                'N' => self.lex = self.beginWord("NaN"),
+                '\\' => self.beginLiteralEscape(.after_sign),
+                else => self.fail(),
             },
             .number_zero => switch (cp) {
-                '.' => return self.setLex(.number_int_dot),
+                '.' => return self.numberPoint(.number_int_dot),
                 'e', 'E' => return self.setLex(.number_exp),
-                'x', 'X' => return self.setLex(.number_hex_start),
-                else => self.endValueToken(),
+                'x', 'X' => {
+                    self.magnitude.hex = true;
+                    return self.setLex(.number_hex_start);
+                },
+                else => if (!self.endNumber()) return,
             },
             .number_int => switch (cp) {
-                '0'...'9' => return,
-                '.' => return self.setLex(.number_int_dot),
+                '0'...'9' => return self.numberDigit(cp, .number_int),
+                '.' => return self.numberPoint(.number_int_dot),
                 'e', 'E' => return self.setLex(.number_exp),
-                else => self.endValueToken(),
+                else => if (!self.endNumber()) return,
             },
             .number_int_dot, .number_frac => switch (cp) {
-                '0'...'9' => return self.setLex(.number_frac),
+                '0'...'9' => return self.numberDigit(cp, .number_frac),
                 'e', 'E' => return self.setLex(.number_exp),
-                else => self.endValueToken(),
+                else => if (!self.endNumber()) return,
             },
             .number_leading_dot => {
                 if (!isDecimalDigit(cp)) return self.fail();
-                return self.setLex(.number_frac);
+                return self.numberDigit(cp, .number_frac);
             },
             .number_exp => return switch (cp) {
-                '+', '-' => self.setLex(.number_exp_sign),
-                '0'...'9' => self.setLex(.number_exp_digits),
+                '+' => self.setLex(.number_exp_sign),
+                '-' => {
+                    self.magnitude.exponent_negative = true;
+                    self.lex = .number_exp_sign;
+                },
+                '0'...'9' => {
+                    self.magnitude.exponentDigit(@intCast(cp - '0'));
+                    self.lex = .number_exp_digits;
+                },
                 else => self.fail(),
             },
-            .number_exp_sign => {
-                if (!isDecimalDigit(cp)) return self.fail();
-                return self.setLex(.number_exp_digits);
+            .number_exp_sign, .number_exp_digits => {
+                if (isDecimalDigit(cp)) {
+                    self.magnitude.exponentDigit(@intCast(cp - '0'));
+                    return self.setLex(.number_exp_digits);
+                }
+                if (self.lex == .number_exp_sign) return self.fail();
+                if (!self.endNumber()) return;
             },
-            .number_exp_digits => {
-                if (isDecimalDigit(cp)) return;
-                self.endValueToken();
-            },
-            .number_hex_start => {
-                if (!isHexDigit(cp)) return self.fail();
-                return self.setLex(.number_hex);
-            },
-            .number_hex => {
-                if (isHexDigit(cp)) return;
-                self.endValueToken();
+            .number_hex_start, .number_hex => {
+                if (hexValue(cp)) |d| {
+                    self.magnitude.digit(@intCast(d));
+                    return self.setLex(.number_hex);
+                }
+                if (self.lex == .number_hex_start) return self.fail();
+                if (!self.endNumber()) return;
             },
             .word => {
                 if (self.word_index < self.word.len) {
+                    if (cp == '\\') return self.beginLiteralEscape(.inside);
                     if (cp != self.word[self.word_index]) return self.fail();
                     self.word_index += 1;
                     return;
                 }
                 self.endValueToken();
+            },
+            .literal_backslash => {
+                if (cp != 'u') return self.fail();
+                self.lex = .literal_hex;
+                self.hex_left = 4;
+                self.hex_value = 0;
+                return;
+            },
+            .literal_hex => {
+                const digit = hexValue(cp) orelse return self.fail();
+                self.hex_value = (self.hex_value << 4) | digit;
+                self.hex_left -= 1;
+                if (self.hex_left != 0) return;
+                const named = self.hex_value;
+                switch (self.literal_escape) {
+                    .inside => {
+                        if (named != self.word[self.word_index]) return self.fail();
+                        self.word_index += 1;
+                        self.lex = .word;
+                    },
+                    .value_start, .after_sign => self.lex = switch (named) {
+                        'I' => self.beginWord("Infinity"),
+                        'N' => self.beginWord("NaN"),
+                        'n', 't', 'f' => if (self.literal_escape == .value_start) self.beginWord(switch (named) {
+                            'n' => "null",
+                            't' => "true",
+                            else => "false",
+                        }) else return self.fail(),
+                        else => return self.fail(),
+                    },
+                }
+                return;
             },
             .ident => {
                 if (self.identifierChar(cp, false)) return;
@@ -541,10 +709,22 @@ pub const Validator = struct {
                 self.expect = .array_value_or_close;
             },
             '"', '\'' => self.beginString(cp, false),
-            '+', '-' => self.lex = .number_sign,
-            '0' => self.lex = .number_zero,
-            '1'...'9' => self.lex = .number_int,
-            '.' => self.lex = .number_leading_dot,
+            '+', '-', '0'...'9', '.' => {
+                self.magnitude = .begin(self.here());
+                self.lex = switch (cp) {
+                    '+', '-' => .number_sign,
+                    '0' => .number_zero,
+                    '.' => blk: {
+                        self.magnitude.in_fraction = true;
+                        break :blk .number_leading_dot;
+                    },
+                    else => blk: {
+                        self.magnitude.digit(@intCast(cp - '0'));
+                        break :blk .number_int;
+                    },
+                };
+            },
+            '\\' => self.beginLiteralEscape(.value_start),
             'n' => self.lex = self.beginWord("null"),
             't' => self.lex = self.beginWord("true"),
             'f' => self.lex = self.beginWord("false"),
@@ -561,6 +741,10 @@ pub const Validator = struct {
     }
 
     fn open(self: *Validator, kind: Container) Error!void {
+        if (self.options.max_depth != 0 and self.depth == self.options.max_depth) {
+            self.noteHere(&self.notes.max_depth);
+            return self.fail();
+        }
         const word = self.depth / 64;
         if (word == self.containers.items.len) try self.containers.append(self.gpa, 0);
         const bit = @as(u64, 1) << @intCast(self.depth % 64);
@@ -933,4 +1117,60 @@ test "astral_identifiers governs escaped surrogate pairs the same way" {
     // A lone low surrogate fails the same way under either value.
     try expectReport("{\\uDC00: 1}", accept, .{ .verdict = invalidAt(6, 1, 7), .notes = .{} });
     try expectReport("{\\uDC00: 1}", .{}, .{ .verdict = invalidAt(6, 1, 7), .notes = .{} });
+}
+
+test "escaped_literals decides whether a Unicode escape may spell a literal" {
+    const accept: Options = .{ .escaped_literals = .accept };
+    // Rejected by default at the backslash, with a note there.
+    try expectReport("n\\u0075ll", .{}, .{ .verdict = invalidAt(1, 1, 2), .notes = .{ .escaped_literals = note(1, 1, 1, 2) } });
+    try expectReport("[\\u0074rue]", .{}, .{ .verdict = invalidAt(1, 1, 2), .notes = .{ .escaped_literals = note(1, 1, 1, 2) } });
+    try expectReport("-\\u0049nfinity", .{}, .{ .verdict = invalidAt(1, 1, 2), .notes = .{ .escaped_literals = note(1, 1, 1, 2) } });
+    // Accepted on request, one note per escape.
+    try expectReport("[n\\u0075ll, \\u0074ru\\u0065, fals\\u0065, Infinit\\u0079, -\\u0049nfinity, Na\\u004E]", accept, .{ .verdict = .valid, .notes = .{ .escaped_literals = note(7, 2, 1, 3) } });
+    // The escape must name the letter the literal needs.
+    try expectReport("n\\u0076ll", accept, .{ .verdict = invalidAt(6, 1, 7), .notes = .{ .escaped_literals = note(1, 1, 1, 2) } });
+    try expectReport("\\u0078", accept, .{ .verdict = invalidAt(5, 1, 6), .notes = .{ .escaped_literals = note(1, 0, 1, 1) } });
+    try expectReport("-\\u006Eull", accept, .{ .verdict = invalidAt(6, 1, 7), .notes = .{ .escaped_literals = note(1, 1, 1, 2) } });
+    try expectReport("n\\x75ll", accept, .{ .verdict = invalidAt(2, 1, 3), .notes = .{ .escaped_literals = note(1, 1, 1, 2) } });
+    // After a complete literal a backslash is not part of it: no note.
+    try expectReport("[null\\u0061]", .{}, .{ .verdict = invalidAt(5, 1, 6), .notes = .{} });
+    try expectReport("[null\\u0061]", accept, .{ .verdict = invalidAt(5, 1, 6), .notes = .{} });
+}
+
+test "number_range decides whether a literal that overflows binary64 is valid" {
+    const binary64: Options = .{ .number_range = .binary64 };
+    // 2^1024 - 2^970 is the smallest magnitude that rounds to infinity.
+    const smallest_overflow = "179769313486231580793728971405303415079934132710037826936173778980444968292764750946649017977587207096330286416692887910946555547851940402630657488671505820681908902000708383676273854845817711531764475730270069855571366959622842914819860834936475292719074168444365510704342711559699508093042880177904174497792";
+    const largest_finite = "179769313486231580793728971405303415079934132710037826936173778980444968292764750946649017977587207096330286416692887910946555547851940402630657488671505820681908902000708383676273854845817711531764475730270069855571366959622842914819860834936475292719074168444365510704342711559699508093042880177904174497791";
+    // Accepted by default; each overflowing literal is noted at its start.
+    try expectReport("[1e400, -1e400, 1e308]", .{}, .{ .verdict = .valid, .notes = .{ .number_range = note(2, 1, 1, 2) } });
+    try expectReport("[1e308, " ++ smallest_overflow ++ "]", binary64, .{ .verdict = invalidAt(8, 1, 9), .notes = .{ .number_range = note(1, 8, 1, 9) } });
+    try expectReport(largest_finite, binary64, .{ .verdict = .valid, .notes = .{} });
+    try expectReport(smallest_overflow, binary64, .{ .verdict = invalidAt(0, 1, 1), .notes = .{ .number_range = note(1, 0, 1, 1) } });
+    // The decimal point, leading zeros, trailing digits and exponent all count.
+    try expectReport("0.000" ++ smallest_overflow ++ "e312", binary64, .{ .verdict = invalidAt(0, 1, 1), .notes = .{ .number_range = note(1, 0, 1, 1) } });
+    try expectReport("0.000" ++ smallest_overflow ++ "e311", binary64, .{ .verdict = .valid, .notes = .{} });
+    try expectReport(largest_finite ++ "0e-1", binary64, .{ .verdict = .valid, .notes = .{} });
+    try expectReport(largest_finite ++ ".00001", binary64, .{ .verdict = .valid, .notes = .{} });
+    // Boundaries checked against JavaScript's Number().
+    try expectReport("1.7976931348623159e308", binary64, .{ .verdict = invalidAt(0, 1, 1), .notes = .{ .number_range = note(1, 0, 1, 1) } });
+    try expectReport("1.797693134862315808e+308", binary64, .{ .verdict = invalidAt(0, 1, 1), .notes = .{ .number_range = note(1, 0, 1, 1) } });
+    try expectReport("1.797693134862315807e308", binary64, .{ .verdict = .valid, .notes = .{} });
+    try expectReport("1.7976931348623158e308", binary64, .{ .verdict = .valid, .notes = .{} });
+    try expectReport("1e99999999999999999999999", binary64, .{ .verdict = invalidAt(0, 1, 1), .notes = .{ .number_range = note(1, 0, 1, 1) } });
+    try expectReport("1e-99999999999999999999999", binary64, .{ .verdict = .valid, .notes = .{} });
+    try expectReport("[0e999, .0e999, -0.0e999]", binary64, .{ .verdict = .valid, .notes = .{} });
+    // Hexadecimal: 0xFFFFFFFFFFFFFC followed by 242 zeros is the boundary.
+    const hex_zeros = "0" ** 242;
+    try expectReport("0xFFFFFFFFFFFFFC" ++ hex_zeros, binary64, .{ .verdict = invalidAt(0, 1, 1), .notes = .{ .number_range = note(1, 0, 1, 1) } });
+    try expectReport("0x00FFFFFFFFFFFFFB" ++ "F" ** 242, binary64, .{ .verdict = .valid, .notes = .{} });
+    // Infinity is a literal, not an overflow; precision is never limited.
+    try expectReport("[Infinity, 123456789012345678901234567890]", binary64, .{ .verdict = .valid, .notes = .{} });
+}
+
+test "max_depth limits nesting when set" {
+    try expectReport("[[{a: [1]}]]", .{ .max_depth = 4 }, .{ .verdict = .valid, .notes = .{} });
+    try expectReport("[[{a: [[1]]}]]", .{ .max_depth = 4 }, .{ .verdict = invalidAt(7, 1, 8), .notes = .{ .max_depth = note(1, 7, 1, 8) } });
+    try expectReport("1", .{ .max_depth = 1 }, .{ .verdict = .valid, .notes = .{} });
+    try expectReport("[[[[[[[[[[[[1]]]]]]]]]]]]", .{}, .{ .verdict = .valid, .notes = .{} });
 }

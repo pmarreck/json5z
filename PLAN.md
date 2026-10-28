@@ -4,8 +4,6 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 
 ## Become json5z (spec-accurate JSON5 validation)
 
-- [x] Mutants for json5z itself (raw LF in strings, surrogates, literal letters, object comma) all caught; one found a test gap, another found dead code (done 2026-10-23 12:58 EDT)
-- [x] Differential fuzz against the reference JavaScript json5 library (npm 2.2.3) plus random chunk-split invariance; 20k cases in ./test, 0 disagreements, bites on a planted bug (done 2026-10-23 13:02 EDT)
 - [x] C FFI (include/json5z.h, pointer+length, streaming) plus a C CLI through it, with ABI and CLI contract tests (done 2026-10-23 13:40 EDT)
 - [x] Ask validate to move from the interim cj5 module to the json5z module, with expected verdict changes (done 2026-10-23 13:45 EDT)
 - [x] Spec-derived case corpus: 687 cases from the JSON5 1.0 and ES5.1 grammars, written by an agent that never read json5z's source (context: docs/plan_context/spec_cases.md) (done 2026-10-23 14:42 EDT)
@@ -16,8 +14,10 @@ Open work for json5z, in priority order (context: docs/plan_context/json5z.md). 
 - [x] README: lead with the accuracy comparison against the reference json5 library and upstream cj5 (done 2026-10-24 00:35 EDT)
 - [ ] Once validate uses the json5z module, delete interim/cj5_modified and its build targets
 - [ ] Benchmark against cj5 under the performance-profiling contract
-- [ ] Core options and notes: line_separators (break|inline) and astral_identifiers (reject|accept) as validator options; per-setting note count and first position, recorded only when the rule changed the result (context: docs/plan_context/settings_and_notes.md)
-- [ ] C ABI: json5z_options in, json5z_notes out, invalid option values rejected (context: docs/plan_context/settings_and_notes.md)
+- [x] Core options and notes: line_separators and astral_identifiers as validator options; per-setting note count and first position, recorded only when the rule changed the result (done 2026-10-28 10:05 EDT, 56585a5)
+- [ ] Every ruling overridable: escaped_literals, number_range (binary64 overflow, fuzzed against JavaScript's Number) and max_depth in the core (context: docs/plan_context/settings_and_notes.md)
+- [x] C ABI: json5z_options in, json5z_notes out, invalid option values rejected (done 2026-10-28 10:18 EDT, 1a7b44f)
+- [ ] C ABI for escaped_literals, number_range and max_depth (context: docs/plan_context/settings_and_notes.md)
 - [ ] CLI settings layers: default, TOML file (tomlc17, XDG path or --config), JSON5Z_* environment, flags; later overrides earlier; --print-config (context: docs/plan_context/settings_and_notes.md)
 - [ ] CLI notes: one stderr line per setting per input naming value and source, JSON5Z_MUTE_INFO mutes stderr only, --json always carries notes (context: docs/plan_context/settings_and_notes.md)
 
