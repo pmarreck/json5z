@@ -3,9 +3,11 @@
 
 	inputs = {
 		nixpkgs.url = "github:NixOS/nixpkgs/nixpkgs-unstable";
+		# Shared benchmark engine behind ./bm and ./mg (performance-profile).
+		performance-profiling.url = "github:pmarreck/performance_profiling/ecf713b81a74a51f76719bf9debc44fe23a0b331";
 	};
 
-	outputs = { self, nixpkgs }:
+	outputs = { self, nixpkgs, performance-profiling }:
 		let
 			systems = [ "aarch64-darwin" "x86_64-darwin" "x86_64-linux" "aarch64-linux" ];
 			forAllSystems = nixpkgs.lib.genAttrs systems;
@@ -31,7 +33,9 @@
 							git
 							luajit
 							nodejs
-						];
+						]
+						# The engine does not build for x86_64-darwin.
+						++ nixpkgs.lib.optional (performance-profiling.packages ? ${system}) performance-profiling.packages.${system}.default;
 						JSON5_REFERENCE = json5Reference pkgs;
 					};
 				});
