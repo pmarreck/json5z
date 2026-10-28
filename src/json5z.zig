@@ -28,6 +28,47 @@ pub const Verdict = union(enum) {
 
 pub const Error = std.mem.Allocator.Error;
 
+/// Choices where the JSON5 specification, or the tools around it, allow more
+/// than one reading (docs/plan_context/settings_and_notes.md). The defaults
+/// are the BDFN rulings in docs/plan_context/spec_rulings.md.
+pub const Options = struct {
+    line_separators: LineSeparators = .end_line,
+    astral_identifiers: AstralIdentifiers = .reject,
+};
+
+/// Whether U+2028 and U+2029 end a line in reported positions. The grammar
+/// treats them as line terminators either way.
+pub const LineSeparators = enum { end_line, same_line };
+
+/// Whether unquoted keys may contain letters beyond U+FFFF, raw or as an
+/// escaped surrogate pair (rulings 3 and 4).
+pub const AstralIdentifiers = enum { reject, accept };
+
+pub const Position = struct {
+    offset: usize = 0,
+    line: usize = 0,
+    column: usize = 0,
+};
+
+/// How many times a setting decided the result, and where it first did.
+/// `first` is meaningful only when `count` is nonzero.
+pub const Note = struct {
+    count: usize = 0,
+    first: Position = .{},
+};
+
+/// One note per setting. A setting decides the result when the other value
+/// would have produced a different verdict or reported position.
+pub const Notes = struct {
+    line_separators: Note = .{},
+    astral_identifiers: Note = .{},
+};
+
+pub const Report = struct {
+    verdict: Verdict,
+    notes: Notes,
+};
+
 const tables = @import("unicode_tables.zig");
 
 /// What the grammar accepts next, outside any token.
@@ -75,12 +116,17 @@ const Lex = enum {
     ident,
     ident_backslash,
     ident_hex,
+    /// After an escaped high surrogate: an escaped low surrogate must follow.
+    ident_pair_backslash,
 };
 
 const Container = enum(u1) { array, object };
 
 pub const Validator = struct {
     gpa: std.mem.Allocator,
+    options: Options = .{},
+    /// Which settings decided the result; read after `finish`.
+    notes: Notes = .{},
     /// One bit per open container, innermost last (1 = object).
     containers: std.ArrayList(u64) = .empty,
     depth: usize = 0,
@@ -107,11 +153,19 @@ pub const Validator = struct {
     hex_left: u3 = 0,
     hex_value: u21 = 0,
     ident_escape_starts: bool = false,
+    /// Where the current identifier escape's backslash sits.
+    escape_at: Position = .{},
+    /// The escaped high surrogate awaiting its low half, or 0.
+    pending_high: u21 = 0,
     word: []const u8 = "",
     word_index: usize = 0,
 
     pub fn init(gpa: std.mem.Allocator) Validator {
         return .{ .gpa = gpa };
+    }
+
+    pub fn initOptions(gpa: std.mem.Allocator, options: Options) Validator {
+        return .{ .gpa = gpa, .options = options };
     }
 
     pub fn deinit(self: *Validator) void {
@@ -130,8 +184,16 @@ pub const Validator = struct {
         }
     }
 
-    /// End of input: the verdict on everything fed so far.
+    /// End of input: the verdict on everything fed so far. `notes` is final
+    /// afterwards.
     pub fn finish(self: *Validator) Verdict {
+        const verdict = self.judge();
+        // A valid document reports no position for a line separator to move.
+        if (verdict == .valid) self.notes.line_separators = .{};
+        return verdict;
+    }
+
+    fn judge(self: *Validator) Verdict {
         if (self.failure) |f| return .{ .invalid = f };
         const incomplete: Verdict = .{ .invalid = .{ .kind = .incomplete, .offset = self.offset, .line = self.line, .column = self.column } };
         if (self.utf8_need != 0) return incomplete;
@@ -180,10 +242,19 @@ pub const Validator = struct {
     }
 
     /// Line and column bookkeeping after each code point; CR LF ends one line.
+    /// U+2028 and U+2029 follow `line_separators`, noted when they precede
+    /// the position a failure will report.
     fn advancePosition(self: *Validator, cp: u21) void {
         const lf_after_cr = cp == '\n' and self.after_cr;
         self.after_cr = cp == '\r';
         if (lf_after_cr) return;
+        if (cp == 0x2028 or cp == 0x2029) {
+            if (self.failure == null) self.noteHere(&self.notes.line_separators);
+            if (self.options.line_separators == .same_line) {
+                self.column += 1;
+                return;
+            }
+        }
         if (isLineTerminator(cp)) {
             self.line += 1;
             self.column = 1;
@@ -198,6 +269,34 @@ pub const Validator = struct {
 
     fn fail(self: *Validator) void {
         self.failAt(self.cp_start);
+    }
+
+    fn here(self: *const Validator) Position {
+        return .{ .offset = self.cp_start, .line = self.line, .column = self.column };
+    }
+
+    fn noteHere(self: *Validator, n: *Note) void {
+        noteAt(n, self.here());
+    }
+
+    fn noteAt(n: *Note, at: Position) void {
+        if (n.count == 0) n.first = at;
+        n.count += 1;
+    }
+
+    /// ES5.1 IdentifierStart or IdentifierPart for a raw code point, with
+    /// `astral_identifiers` deciding letters beyond U+FFFF (noted).
+    fn identifierChar(self: *Validator, cp: u21, start: bool) bool {
+        const allowed = if (start) isIdentifierStart(cp) else isIdentifierPart(cp);
+        if (!allowed or cp <= max_bmp) return allowed;
+        self.noteHere(&self.notes.astral_identifiers);
+        return self.options.astral_identifiers == .accept;
+    }
+
+    fn beginIdentEscape(self: *Validator, starts: bool) void {
+        self.ident_escape_starts = starts;
+        self.escape_at = self.here();
+        self.lex = .ident_backslash;
     }
 
     /// Advance the grammar by one code point. A state that ends its token on
@@ -326,11 +425,8 @@ pub const Validator = struct {
                 self.endValueToken();
             },
             .ident => {
-                if (isIdentifierPart(cp)) return;
-                if (cp == '\\') {
-                    self.ident_escape_starts = false;
-                    return self.setLex(.ident_backslash);
-                }
+                if (self.identifierChar(cp, false)) return;
+                if (cp == '\\') return self.beginIdentEscape(false);
                 self.lex = .none;
                 self.expect = .object_colon;
             },
@@ -346,10 +442,28 @@ pub const Validator = struct {
                 self.hex_value = (self.hex_value << 4) | digit;
                 self.hex_left -= 1;
                 if (self.hex_left != 0) return;
+                var named = self.hex_value;
+                if (self.pending_high != 0) {
+                    if (named < 0xDC00 or named > 0xDFFF) return self.fail();
+                    named = 0x10000 + ((self.pending_high - 0xD800) << 10) + (named - 0xDC00);
+                    self.pending_high = 0;
+                } else if (named >= 0xD800 and named <= 0xDBFF) {
+                    // An escaped pair is decided by `astral_identifiers`.
+                    noteAt(&self.notes.astral_identifiers, self.escape_at);
+                    if (self.options.astral_identifiers == .reject) return self.fail();
+                    self.pending_high = named;
+                    self.lex = .ident_pair_backslash;
+                    return;
+                }
                 // An escape must name a character the identifier could contain.
-                const ok = if (self.ident_escape_starts) isIdentifierStart(self.hex_value) else isIdentifierPart(self.hex_value);
+                const ok = if (self.ident_escape_starts) isIdentifierStart(named) else isIdentifierPart(named);
                 if (!ok) return self.fail();
                 self.lex = .ident;
+                return;
+            },
+            .ident_pair_backslash => {
+                if (cp != '\\') return self.fail();
+                self.lex = .ident_backslash;
                 return;
             },
         };
@@ -400,11 +514,8 @@ pub const Validator = struct {
             .object_key_or_close => switch (cp) {
                 '}' => self.close(.object),
                 '"', '\'' => self.beginString(cp, true),
-                '\\' => {
-                    self.ident_escape_starts = true;
-                    self.lex = .ident_backslash;
-                },
-                else => if (isIdentifierStart(cp)) {
+                '\\' => self.beginIdentEscape(true),
+                else => if (self.identifierChar(cp, true)) {
                     self.lex = .ident;
                 } else self.fail(),
             },
@@ -507,16 +618,16 @@ fn isWhitespace(cp: u21) bool {
 }
 
 /// ECMAScript 5.1 IdentifierStart, less the `\` escape form: letters
-/// (Lu Ll Lt Lm Lo Nl), `$` and `_`. ES5.1 source text is UTF-16 code
-/// units, so a character beyond U+FFFF arrives as two surrogates, neither a
-/// letter: identifiers stay within the Basic Multilingual Plane
-/// (docs/plan_context/spec_rulings.md, ruling 3).
+/// (Lu Ll Lt Lm Lo Nl), `$` and `_`, judged by code point. ES5.1 source
+/// text is UTF-16 code units, so beyond U+FFFF it sees two surrogates, neither
+/// a letter: `Validator.identifierChar` applies that reading (ruling 3) unless
+/// `astral_identifiers` is `accept`.
 fn isIdentifierStart(cp: u21) bool {
     if (cp < 0x80) return switch (cp) {
         'a'...'z', 'A'...'Z', '$', '_' => true,
         else => false,
     };
-    return cp <= max_bmp and inRanges(&tables.id_start, cp);
+    return inRanges(&tables.id_start, cp);
 }
 
 const max_bmp = 0xFFFF;
@@ -526,7 +637,7 @@ const max_bmp = 0xFFFF;
 fn isIdentifierPart(cp: u21) bool {
     if (isIdentifierStart(cp) or isDecimalDigit(cp)) return true;
     if (cp < 0x80) return false;
-    return cp == 0x200C or cp == 0x200D or (cp <= max_bmp and inRanges(&tables.id_continue_only, cp));
+    return cp == 0x200C or cp == 0x200D or inRanges(&tables.id_continue_only, cp);
 }
 
 /// Binary search over sorted inclusive ranges.
@@ -544,12 +655,19 @@ fn inRanges(ranges: []const [2]u21, cp: u21) bool {
     return false;
 }
 
-/// Validate a whole document held in memory.
+/// Validate a whole document held in memory under the default options.
 pub fn validate(gpa: std.mem.Allocator, input: []const u8) Error!Verdict {
-    var v = Validator.init(gpa);
+    return (try check(gpa, input, .{})).verdict;
+}
+
+/// Validate a whole document held in memory, reporting which settings
+/// decided the result.
+pub fn check(gpa: std.mem.Allocator, input: []const u8, options: Options) Error!Report {
+    var v = Validator.initOptions(gpa, options);
     defer v.deinit();
     try v.feed(input);
-    return v.finish();
+    const verdict = v.finish();
+    return .{ .verdict = verdict, .notes = v.notes };
 }
 
 // ---------------------------------------------------------------- tests
@@ -740,4 +858,79 @@ test "failures report a 1-based line and column in code points" {
     try expectLocation("", .incomplete, 0, 1, 1);
     try expectLocation("{a: 1\n", .incomplete, 6, 2, 1);
     try expectLocation("[\n'\u{E9}", .incomplete, 5, 2, 3);
+}
+
+/// Judge `input` under `options` whole and again one byte per feed; the
+/// verdicts and notes must match.
+fn judgeWith(input: []const u8, options: Options) !Report {
+    const whole = try check(testing.allocator, input, options);
+    var v = Validator.initOptions(testing.allocator, options);
+    defer v.deinit();
+    for (0..input.len) |i| try v.feed(input[i .. i + 1]);
+    try testing.expectEqualDeep(whole, Report{ .verdict = v.finish(), .notes = v.notes });
+    return whole;
+}
+
+fn note(count: usize, offset: usize, line: usize, column: usize) Note {
+    return .{ .count = count, .first = .{ .offset = offset, .line = line, .column = column } };
+}
+
+fn expectReport(input: []const u8, options: Options, want: Report) !void {
+    errdefer std.debug.print("under {any}: {f}\n", .{ options, std.zig.fmtString(input) });
+    try testing.expectEqualDeep(want, try judgeWith(input, options));
+}
+
+fn invalidAt(offset: usize, line: usize, column: usize) Verdict {
+    return .{ .invalid = .{ .kind = .invalid, .offset = offset, .line = line, .column = column } };
+}
+
+test "default options are the BDFN rulings and record no notes on plain input" {
+    try testing.expectEqualDeep(Options{ .line_separators = .end_line, .astral_identifiers = .reject }, Options{});
+    try expectReport("{a: [1, 'x']}", .{}, .{ .verdict = .valid, .notes = .{} });
+}
+
+test "line_separators decides whether U+2028 and U+2029 end a line in positions" {
+    // Each LS or PS before a reported position is a note; LF and CR are not.
+    try expectReport("[\u{2028}\n\u{2029},]", .{}, .{ .verdict = invalidAt(8, 4, 1), .notes = .{ .line_separators = note(2, 1, 1, 2) } });
+    try expectReport("[\u{2028}\n\u{2029},]", .{ .line_separators = .same_line }, .{ .verdict = invalidAt(8, 2, 2), .notes = .{ .line_separators = note(2, 1, 1, 2) } });
+    // Inside strings too, where JSON5 allows them unescaped.
+    try expectReport("['a\u{2028}b' ?]", .{ .line_separators = .same_line }, .{ .verdict = invalidAt(9, 1, 8), .notes = .{ .line_separators = note(1, 3, 1, 4) } });
+    // A valid document prints no position, so no note.
+    try expectReport("[\u{2028}1\u{2029}]", .{}, .{ .verdict = .valid, .notes = .{} });
+    // A separator at the failure itself does not precede it.
+    try expectReport("'\\u\u{2028}'", .{}, .{ .verdict = invalidAt(3, 1, 4), .notes = .{} });
+    // Incomplete input reports a position as well.
+    try expectReport("[\u{2028}", .{}, .{ .verdict = .{ .invalid = .{ .kind = .incomplete, .offset = 4, .line = 2, .column = 1 } }, .notes = .{ .line_separators = note(1, 1, 1, 2) } });
+}
+
+test "astral_identifiers decides letters beyond U+FFFF in unquoted keys" {
+    const accept: Options = .{ .astral_identifiers = .accept };
+    // Rejected by default, with a note at the character that decided it.
+    try expectReport("{\u{10000}: 1}", .{}, .{ .verdict = invalidAt(1, 1, 2), .notes = .{ .astral_identifiers = note(1, 1, 1, 2) } });
+    try expectReport("{a\u{1D400}: 1}", .{}, .{ .verdict = invalidAt(2, 1, 3), .notes = .{ .astral_identifiers = note(1, 2, 1, 3) } });
+    // Accepted on request: letters, marks and digits after the start.
+    try expectReport("{\u{10000}: 1, a\u{1D400}\u{1D167}\u{1D7CE}: 2}", accept, .{ .verdict = .valid, .notes = .{ .astral_identifiers = note(4, 1, 1, 2) } });
+    // A mark or digit still cannot start a key, and a non-letter is never
+    // part of one: the setting decides nothing there, so no note.
+    try expectReport("{\u{1D7CE}: 1}", accept, .{ .verdict = invalidAt(1, 1, 2), .notes = .{} });
+    try expectReport("{a\u{1F600}: 1}", accept, .{ .verdict = invalidAt(2, 1, 3), .notes = .{} });
+    try expectReport("{a\u{1F600}: 1}", .{}, .{ .verdict = invalidAt(2, 1, 3), .notes = .{} });
+    // Quoted keys and strings never consult the setting.
+    try expectReport("{'\u{10000}': '\u{1D400}'}", .{}, .{ .verdict = .valid, .notes = .{} });
+}
+
+test "astral_identifiers governs escaped surrogate pairs the same way" {
+    const accept: Options = .{ .astral_identifiers = .accept };
+    // The escape's backslash locates the note. Rejected at the high
+    // surrogate by default, as before.
+    try expectReport("{\\uD835\\uDC00: 1}", .{}, .{ .verdict = invalidAt(6, 1, 7), .notes = .{ .astral_identifiers = note(1, 1, 1, 2) } });
+    try expectReport("{\\uD835\\uDC00: 1, a\\uD835\\uDC00: 2}", accept, .{ .verdict = .valid, .notes = .{ .astral_identifiers = note(2, 1, 1, 2) } });
+    // Under accept a high surrogate must be followed by an escaped low one,
+    // and the pair must name an identifier character.
+    try expectReport("{a\\uD835: 1}", accept, .{ .verdict = invalidAt(8, 1, 9), .notes = .{ .astral_identifiers = note(1, 2, 1, 3) } });
+    try expectReport("{a\\uD835\\u0041: 1}", accept, .{ .verdict = invalidAt(13, 1, 14), .notes = .{ .astral_identifiers = note(1, 2, 1, 3) } });
+    try expectReport("{\\uD83D\\uDE00: 1}", accept, .{ .verdict = invalidAt(12, 1, 13), .notes = .{ .astral_identifiers = note(1, 1, 1, 2) } });
+    // A lone low surrogate fails the same way under either value.
+    try expectReport("{\\uDC00: 1}", accept, .{ .verdict = invalidAt(6, 1, 7), .notes = .{} });
+    try expectReport("{\\uDC00: 1}", .{}, .{ .verdict = invalidAt(6, 1, 7), .notes = .{} });
 }

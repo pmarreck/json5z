@@ -75,8 +75,19 @@ mutant_json5z_object_comma_skips_key() {
 }
 
 mutant_json5z_astral_identifiers() {
-	# Accept letters beyond the Basic Multilingual Plane in unquoted keys.
-	replace src/json5z.zig 'return cp <= max_bmp and inRanges(&tables.id_start, cp);' 'return inRanges(&tables.id_start, cp);'
+	# Accept letters beyond the Basic Multilingual Plane in unquoted keys
+	# whatever astral_identifiers says.
+	replace src/json5z.zig 'return self.options.astral_identifiers == .accept;' 'return true;'
+}
+
+mutant_json5z_unpaired_high_surrogate() {
+	# Accept any escape after an escaped high surrogate in a key.
+	replace src/json5z.zig $'                    if (named < 0xDC00 or named > 0xDFFF) return self.fail();\n' ''
+}
+
+mutant_json5z_line_separator_note_kept() {
+	# Keep line-separator notes for a valid document, which prints no position.
+	replace src/json5z.zig $'        if (verdict == .valid) self.notes.line_separators = .{};\n' ''
 }
 
 mutant_json5z_crlf_counts_twice() {
@@ -88,7 +99,8 @@ mutants=(mutant_chain_drops_parent mutant_open_count_sticks mutant_oracle_edited
 	mutant_ledger_forgets_case mutant_corpus_case_edited
 	mutant_json5z_raw_lf_in_string mutant_json5z_accepts_surrogates
 	mutant_json5z_literal_unchecked mutant_json5z_object_comma_skips_key
-	mutant_json5z_astral_identifiers mutant_json5z_crlf_counts_twice)
+	mutant_json5z_astral_identifiers mutant_json5z_crlf_counts_twice
+	mutant_json5z_unpaired_high_surrogate mutant_json5z_line_separator_note_kept)
 
 for m in "${mutants[@]}"; do
 	dir="$work/$m"

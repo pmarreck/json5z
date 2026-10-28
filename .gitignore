@@ -76,3 +76,6 @@ temp
 # Zig
 .zig-cache/
 zig-out/
+
+# Agent worktrees (local checkouts of other branches)
+.claude/worktrees/

@@ -16,7 +16,7 @@ have no known dissenting implementation and stay fixed until one appears.
 
 | Setting | Values (default first) | Affects |
 |---|---|---|
-| `line_separators` | `break`, `inline` | Positions: whether U+2028 and U+2029 end a line in failure reports, or count as one column on the same line. The grammar treats them as line terminators either way. |
+| `line_separators` | `end-line`, `same-line` | Positions: whether U+2028 and U+2029 end a line in failure reports, or count as one column on the same line. The grammar treats them as line terminators either way. |
 | `astral_identifiers` | `reject`, `accept` | Verdicts: whether unquoted keys may contain letters beyond U+FFFF, raw or as an escaped surrogate pair (rulings 3 and 4 together). |
 
 Columns always count code points (BDFN ruling, 2026-10-28).
@@ -48,15 +48,18 @@ and the position of the first. A rule changes the result when:
 - `line_separators`: a U+2028 or U+2029 precedes a reported failure position
   (in a valid document no position is printed, so there is no note);
 - `astral_identifiers`: an unquoted key contains a letter beyond U+FFFF, which
-  fails the document under `reject` and is accepted under `accept`. A
-  character beyond U+FFFF that is not a letter, or a lone escaped surrogate, is
-  rejected under either value and makes no note.
+  fails the document under `reject` and is accepted under `accept`. An
+  escaped high surrogate in a key is always noted: `reject` fails it at once,
+  while `accept` takes it as the first half of a pair and fails later, if at
+  all. A character beyond U+FFFF that is not an identifier character, or a
+  lone escaped low surrogate, fails at the same place under either value and
+  makes no note.
 
 The CLI prints one line per setting per input on stderr, after the verdict
 line, naming the value and its source, for example:
 
 ```text
-json5z: note: config.json5: U+2028 LINE SEPARATOR at line 2, column 9 (byte 41) ended a line (line_separators=break, default); 3 more before the failure. Mute with JSON5Z_MUTE_INFO=1.
+json5z: note: config.json5: U+2028 LINE SEPARATOR at line 2, column 9 (byte 41) ended a line (line_separators=end-line, default); 3 more before the failure. Mute with JSON5Z_MUTE_INFO=1.
 ```
 
 `JSON5Z_MUTE_INFO` (any non-empty value) mutes the stderr notes only. `--json`
